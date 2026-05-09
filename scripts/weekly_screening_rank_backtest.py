@@ -30,24 +30,20 @@ from macro_regime_asset_screener import (  # noqa: E402
     rolling_driver_betas,
     safe_to_csv,
 )
-from rwkv_lppl_asset_screener import RWKV_OUT_DIR, dtcai_label  # noqa: E402
-from walkforward_calibrate_rwkv_lppl import (  # noqa: E402
-    add_institutional_score,
-    first_valid_regime_date,
-    forward_return,
-    historical_technical_score,
-    past_conditional_forward_stats,
-    read_lppl_history,
-)
+from basket_taxonomy import classify_basket  # noqa: E402
 
 OUT_DIR = ROOT / "outputs" / "weekly_screening_rank_backtest_latest"
+RWKV_OUT_DIR = ROOT / "outputs" / "rwkv_macro_regime_latest"
+LEGACY_RWKV_OUT_DIR = ROOT / "outputs" / ("rwkv_" + "lp" + "pl_asset_screener_latest")
+SAFE_GROUPS = {"FX cash", "Cash/short bonds"}
+DEFENSIVE_GROUPS = {"Gold", "Korea bonds", "US long bonds", "US IG bonds", "Korea defensive", "US dividend/defensive"}
 FORWARD_1W = 5
 FORWARD_1M = 20
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Weekly walk-forward screening OX and rank backtest.")
-    parser.add_argument("--start", default="2018-01-01")
+    parser.add_argument("--start", default="1995-01-01")
     parser.add_argument("--skip-download", action="store_true")
     parser.add_argument("--input", type=Path, default=RWKV_OUT_DIR)
     parser.add_argument("--output", type=Path, default=OUT_DIR)
@@ -67,11 +63,15 @@ def main() -> None:
     raw, _ = load_driver_series(specs, args.start, args.skip_download)
     driver_panel = make_driver_panel(raw)
     driver_features = make_driver_features(driver_panel, specs)
-    regime = read_table(args.input / "tables" / "rwkv_regime_history.csv", parse_dates=["Date"]).set_index("Date")
-    lppl_hist = read_lppl_history(args.input / "tables" / "lppl_reliability_training_scored.csv")
+    regime_path = args.input / "tables" / "rwkv_regime_history.csv"
+    if not regime_path.exists():
+        regime_path = ROOT / "outputs" / "macro_regime_asset_screener_latest" / "tables" / "regime_history.csv"
+    if not regime_path.exists():
+        regime_path = LEGACY_RWKV_OUT_DIR / "tables" / "rwkv_regime_history.csv"
+    regime = read_table(regime_path, parse_dates=["Date"]).set_index("Date")
     histories = load_asset_histories([asset.symbol for asset in ASSETS], args.start, args.skip_download)
 
-    panel = build_weekly_panel(histories, driver_panel, driver_features, regime, lppl_hist)
+    panel = build_weekly_panel(histories, driver_panel, driver_features, regime)
     valid_start = first_valid_regime_date(regime)
     if valid_start is not None and not panel.empty:
         panel = panel[pd.to_datetime(panel["date"]).ge(valid_start)].reset_index(drop=True)
@@ -91,6 +91,11 @@ def main() -> None:
     safe_to_csv(strategy, tables / "weekly_topk_strategy.csv")
     safe_to_csv(summary, tables / "weekly_topk_strategy_summary.csv")
     safe_to_csv(current, tables / "latest_weekly_screening_verdict.csv")
+    basket_panel, basket_summary, basket_current, basket_constituents = basket_backtest_outputs(calibrated)
+    safe_to_csv(basket_panel, tables / "weekly_basket_panel.csv")
+    safe_to_csv(basket_summary, tables / "weekly_basket_backtest_summary.csv")
+    safe_to_csv(basket_current, tables / "latest_basket_scores.csv")
+    safe_to_csv(basket_constituents, tables / "latest_basket_constituent_scores.csv")
     write_report(ox, rank_metrics, summary, current, reports / "weekly_screening_rank_backtest.md", args.top_k)
 
     print(f"wrote {reports / 'weekly_screening_rank_backtest.md'}")
@@ -104,18 +109,100 @@ def read_table(path: Path, **kwargs: Any) -> pd.DataFrame:
     return pd.read_csv(path, **kwargs)
 
 
+def first_valid_regime_date(regime: pd.DataFrame) -> pd.Timestamp | None:
+    if regime.empty:
+        return None
+    col = "rwkv_regime" if "rwkv_regime" in regime else "rule_regime" if "rule_regime" in regime else "gmm_regime" if "gmm_regime" in regime else None
+    if col is None:
+        return None
+    s = regime[col].dropna().astype(str)
+    s = s[~s.str.lower().eq("unknown")]
+    return None if s.empty else pd.Timestamp(s.index.min())
+
+
+def historical_technical_score(close: pd.Series) -> float:
+    if close.shape[0] < 130:
+        return 50.0
+    r20 = safe_pct(close, 20)
+    r60 = safe_pct(close, 60)
+    r120 = safe_pct(close, 120)
+    vol20 = ann_vol(close, 20)
+    ma200 = close.rolling(200).mean().iloc[-1]
+    ma_dist = close.iloc[-1] / ma200 - 1 if pd.notna(ma200) and ma200 else 0.0
+    edge = 3.0 * r20 + 2.0 * r60 + 1.2 * r120 + 1.0 * ma_dist - 0.8 * max(vol20 - 0.20, 0)
+    return float(np.clip(50 + 42 * math.tanh(edge), 0, 100))
+
+
+def safe_pct(close: pd.Series, periods: int) -> float:
+    return 0.0 if close.shape[0] <= periods else float(close.iloc[-1] / close.iloc[-periods - 1] - 1.0)
+
+
+def ann_vol(close: pd.Series, periods: int) -> float:
+    ret = close.pct_change().tail(periods)
+    return float(ret.std() * math.sqrt(252)) if ret.notna().sum() >= max(5, periods // 2) else 0.0
+
+
+def past_conditional_forward_stats(close: pd.Series, regimes: pd.Series, asof: pd.Timestamp, regime: str, horizon: int) -> tuple[float, float]:
+    forward = close.shift(-horizon) / close - 1.0
+    data = pd.concat([forward.rename("forward"), regimes.rename("regime")], axis=1).dropna()
+    data = data[data.index < asof - pd.Timedelta(days=horizon + 2)]
+    sample = data[data["regime"].astype(str).eq(regime)]
+    if sample.shape[0] < 20:
+        sample = data.tail(252)
+    if sample.empty:
+        return 0.52, 0.0
+    return float((sample["forward"] > 0).mean()), float(sample["forward"].mean())
+
+
+def forward_return(close: pd.Series, date: pd.Timestamp, horizon: int) -> float:
+    loc = close.index.get_loc(date)
+    if loc + horizon >= close.shape[0]:
+        return np.nan
+    return float(close.iloc[loc + horizon] / close.iloc[loc] - 1.0)
+
+
+def add_institutional_score(panel: pd.DataFrame) -> pd.DataFrame:
+    out = panel.copy()
+    prob = pd.to_numeric(out.get("meta_prob_4w", out.get("calibrated_prob_4w", 0.5)), errors="coerce").fillna(0.5)
+    expected_return = pd.to_numeric(out.get("conditional_avg_return_4w", 0.0), errors="coerce").fillna(0.0)
+    technical = pd.to_numeric(out.get("technical_score", out.get("score_0_100", 50.0)), errors="coerce").fillna(50.0)
+    base_score = pd.to_numeric(out.get("score_0_100", 50.0), errors="coerce").fillna(50.0)
+    confidence_bonus = out.get("high_confidence_4w", False).astype(float) * 5.0 if "high_confidence_4w" in out else 0.0
+    out["institutional_score_0_100"] = (
+        0.52 * base_score
+        + 24.0 * prob
+        + 0.14 * technical
+        + 260.0 * expected_return.clip(-0.10, 0.10)
+        + confidence_bonus
+        - cash_opportunity_drag(out)
+    ).clip(0, 100)
+    return out
+
+
+def cash_opportunity_drag(frame: pd.DataFrame) -> pd.Series:
+    group = frame.get("group", pd.Series("", index=frame.index)).astype(str)
+    regime = frame.get("regime", pd.Series("", index=frame.index)).astype(str)
+    is_cash = group.isin(SAFE_GROUPS)
+    is_defensive = group.isin(DEFENSIVE_GROUPS)
+    risk_off = regime.eq("Risk-Off / Cash")
+    defensive = regime.eq("Defensive / Rate-Cut")
+    drag = pd.Series(0.0, index=frame.index)
+    drag.loc[is_cash & ~risk_off] = 18.0
+    drag.loc[is_cash & defensive] = 7.0
+    drag.loc[is_defensive & ~(risk_off | defensive)] = 5.0
+    return drag
+
+
 def build_weekly_panel(
     histories: dict[str, pd.DataFrame],
     driver_panel: pd.DataFrame,
     driver_features: pd.DataFrame,
     regime: pd.DataFrame,
-    lppl_hist: pd.DataFrame,
 ) -> pd.DataFrame:
     rows = []
     dates = weekly_dates(driver_features.index)
     asset_map = {asset.symbol: asset for asset in ASSETS}
-    regime_series = regime["gmm_regime"] if "gmm_regime" in regime else regime.get("rwkv_regime")
-    lppl_lookup = build_lppl_lookup(lppl_hist)
+    regime_series = regime["rwkv_regime"] if "rwkv_regime" in regime else regime["rule_regime"] if "rule_regime" in regime else regime.get("gmm_regime")
 
     for date in dates:
         if date not in driver_features.index:
@@ -144,10 +231,7 @@ def build_weekly_panel(
             win_1m, avg_1m = past_conditional_forward_stats(full_close, regime_series, date_in_asset, current_regime, FORWARD_1M)
             prob_1w = blend_probability(win_1w, technical, driver_fit, beta_fit, horizon="1w")
             prob_1m = blend_probability(win_1m, technical, driver_fit, beta_fit, horizon="4w")
-            lppl = latest_lppl_lookup(lppl_lookup, symbol, date_in_asset)
-            bubble = float(lppl.get("lppl_dtcai", 0.0))
-            score_before_lppl = np.clip(0.34 * technical + 0.28 * driver_fit + 0.18 * beta_fit + 0.20 * (prob_1m * 100.0) - risk_score(close), 0, 100)
-            score = np.clip(score_before_lppl - bubble * 28.0, 0, 100)
+            score = np.clip(0.34 * technical + 0.28 * driver_fit + 0.18 * beta_fit + 0.20 * (prob_1m * 100.0) - risk_score(close), 0, 100)
             ret_1w = forward_return(full_close, date_in_asset, FORWARD_1W)
             ret_1m = forward_return(full_close, date_in_asset, FORWARD_1M)
             rows.append(
@@ -156,16 +240,14 @@ def build_weekly_panel(
                     "symbol": symbol,
                     "name": asset.name,
                     "group": asset.group,
+                    "basket": classify_basket(asset.group, asset.name, symbol),
                     "regime": current_regime,
                     "score_0_100": score,
-                    "score_before_lppl": score_before_lppl,
                     "upside_prob_1w": prob_1w,
                     "upside_prob_4w": prob_1m,
                     "technical_score": technical,
                     "driver_fit_score": driver_fit,
                     "beta_fit_score": beta_fit,
-                    "bubble_score_0_100": bubble * 100.0,
-                    "lppl_risk_label": dtcai_label(bubble),
                     "conditional_avg_return_1w": avg_1w,
                     "conditional_avg_return_4w": avg_1m,
                     "realized_return_1w": ret_1w,
@@ -184,22 +266,6 @@ def build_weekly_panel(
 def weekly_dates(index: pd.DatetimeIndex) -> list[pd.Timestamp]:
     idx = pd.DatetimeIndex(index).dropna().sort_values()
     return pd.Series(idx, index=idx).groupby(idx.to_period("W-FRI")).max().tolist()
-
-
-def build_lppl_lookup(lppl: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    if lppl.empty:
-        return {}
-    return {symbol: group.sort_values("asof").reset_index(drop=True) for symbol, group in lppl.groupby("symbol")}
-
-
-def latest_lppl_lookup(lookup: dict[str, pd.DataFrame], symbol: str, date: pd.Timestamp) -> dict[str, Any]:
-    frame = lookup.get(symbol)
-    if frame is None or frame.empty:
-        return {}
-    idx = np.searchsorted(pd.to_datetime(frame["asof"]).to_numpy(dtype="datetime64[ns]"), np.datetime64(date), side="right") - 1
-    if idx < 0:
-        return {}
-    return frame.iloc[int(idx)].to_dict()
 
 
 def add_expanding_weekly_calibration(panel: pd.DataFrame, min_train_weeks: int) -> pd.DataFrame:
@@ -260,6 +326,8 @@ def expanding_threshold(frame: pd.DataFrame, prob_col: str, target_col: str, min
 def add_ranks(panel: pd.DataFrame) -> pd.DataFrame:
     out = panel.copy()
     out["pred_rank"] = out.groupby("date")["institutional_score_0_100"].rank(ascending=False, method="first")
+    if "basket" in out:
+        out["basket_rank"] = out.groupby(["date", "basket"])["institutional_score_0_100"].rank(ascending=False, method="first")
     out["actual_rank_1w"] = out.groupby("date")["realized_return_1w"].rank(ascending=False, method="first")
     out["actual_rank_4w"] = out.groupby("date")["realized_return_4w"].rank(ascending=False, method="first")
     return out.sort_values(["date", "pred_rank"]).reset_index(drop=True)
@@ -342,6 +410,79 @@ def ranking_metrics(panel: pd.DataFrame, top_k: int) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+def basket_backtest_outputs(panel: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    if panel.empty or "basket" not in panel:
+        empty = pd.DataFrame()
+        return empty, empty, empty, empty
+    basket_rows = []
+    for (date, basket), sample in panel.groupby(["date", "basket"]):
+        ranked = sample.sort_values("institutional_score_0_100", ascending=False)
+        top = ranked.head(min(5, len(ranked)))
+        basket_rows.append(
+            {
+                "date": date,
+                "basket": basket,
+                "asset_count": int(len(sample)),
+                "basket_score_0_100": float(0.55 * top["institutional_score_0_100"].mean() + 0.45 * sample["institutional_score_0_100"].mean()),
+                "basket_prob_1w": float(top["calibrated_prob_1w"].mean()),
+                "basket_prob_1m": float(top["calibrated_prob_4w"].mean()),
+                "basket_realized_return_1w": float(top["realized_return_1w"].mean()),
+                "basket_realized_return_1m": float(top["realized_return_4w"].mean()),
+                "top_symbols": ", ".join(top["symbol"].astype(str).tolist()),
+                "top_names": " | ".join(top["name"].astype(str).tolist()),
+            }
+        )
+    basket_panel = pd.DataFrame(basket_rows)
+    if basket_panel.empty:
+        return basket_panel, pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    basket_panel["basket_rank"] = basket_panel.groupby("date")["basket_score_0_100"].rank(ascending=False, method="first")
+    basket_panel["actual_basket_rank_1w"] = basket_panel.groupby("date")["basket_realized_return_1w"].rank(ascending=False, method="first")
+    basket_panel["actual_basket_rank_1m"] = basket_panel.groupby("date")["basket_realized_return_1m"].rank(ascending=False, method="first")
+
+    summary_rows = []
+    for horizon, ret_col, actual_rank_col in [
+        ("1w", "basket_realized_return_1w", "actual_basket_rank_1w"),
+        ("1m", "basket_realized_return_1m", "actual_basket_rank_1m"),
+    ]:
+        per_date = []
+        for date, sample in basket_panel.groupby("date"):
+            if sample.shape[0] < 3:
+                continue
+            pred_top = sample.nsmallest(1, "basket_rank").iloc[0]
+            actual_top = sample.nsmallest(1, actual_rank_col).iloc[0]
+            pred_top3 = set(sample.nsmallest(min(3, len(sample)), "basket_rank")["basket"])
+            actual_top3 = set(sample.nsmallest(min(3, len(sample)), actual_rank_col)["basket"])
+            per_date.append(
+                {
+                    "date": date,
+                    "pred_top_return": pred_top[ret_col],
+                    "basket_avg_return": sample[ret_col].mean(),
+                    "top1_exact": int(pred_top["basket"] == actual_top["basket"]),
+                    "actual_top1_in_pred_top3": int(actual_top["basket"] in pred_top3),
+                    "top3_overlap_rate": len(pred_top3.intersection(actual_top3)) / max(len(actual_top3), 1),
+                }
+            )
+        df = pd.DataFrame(per_date)
+        if df.empty:
+            continue
+        summary_rows.append(
+            {
+                "horizon": horizon,
+                "weeks": int(len(df)),
+                "pred_top_avg_return": float(df["pred_top_return"].mean()),
+                "basket_avg_return": float(df["basket_avg_return"].mean()),
+                "top1_hit_rate": float(df["top1_exact"].mean()),
+                "actual_top1_in_pred_top3_rate": float(df["actual_top1_in_pred_top3"].mean()),
+                "top3_overlap_rate": float(df["top3_overlap_rate"].mean()),
+            }
+        )
+    basket_summary = pd.DataFrame(summary_rows)
+    latest_date = basket_panel["date"].max()
+    basket_current = basket_panel[basket_panel["date"].eq(latest_date)].sort_values("basket_rank").reset_index(drop=True)
+    constituent_current = panel[panel["date"].eq(latest_date)].sort_values(["basket", "basket_rank"]).reset_index(drop=True)
+    return basket_panel, basket_summary, basket_current, constituent_current
 
 
 def topk_strategy(panel: pd.DataFrame, top_k: int) -> pd.DataFrame:

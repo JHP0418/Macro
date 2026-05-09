@@ -10,7 +10,6 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 RISK_VECTOR = ROOT / "outputs" / "risk_vector_dashboard_latest" / "tables" / "daily_risk_vector.csv"
 DRIVER_PANEL = ROOT / "outputs" / "macro_regime_asset_screener_latest" / "tables" / "driver_panel.csv"
-LPPL_CURRENT = ROOT / "outputs" / "rwkv_lppl_asset_screener_latest" / "tables" / "current_asset_scores_rwkv_lppl.csv"
 OUT_DIR = ROOT / "outputs" / "analog_macro_risk_model_latest"
 
 
@@ -23,6 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--exclude-recent-days", type=int, default=21)
     parser.add_argument("--neighbors", type=str, default="20,50,100")
     parser.add_argument("--retrain-step-days", type=int, default=21)
+    parser.add_argument("--analog-step-days", type=int, default=5)
     return parser.parse_args()
 
 
@@ -34,7 +34,7 @@ def main() -> None:
         path.mkdir(parents=True, exist_ok=True)
     ks = [int(x.strip()) for x in args.neighbors.split(",") if x.strip()]
     panel = build_panel(args.risk_vector, args.driver_panel)
-    analog = build_point_in_time_analog_features(panel, ks, args.min_history_days, args.exclude_recent_days)
+    analog = build_point_in_time_analog_features(panel, ks, args.min_history_days, args.exclude_recent_days, args.analog_step_days)
     scored, validation = walkforward_meta_model(analog, args.min_history_days, args.retrain_step_days)
     current = scored.tail(1).copy()
 
@@ -59,7 +59,7 @@ def build_panel(risk_vector_path: Path, driver_panel_path: Path) -> pd.DataFrame
         if pd.api.types.is_numeric_dtype(df[col]):
             df[col] = pd.to_numeric(df[col], errors="coerce").replace([np.inf, -np.inf], np.nan).ffill()
 
-    price_cols = ["NASDAQ100", "SP500", "SOX", "RUSSELL2000", "DXY", "USDKRW", "GOLD", "WTI", "COPPER_GOLD"]
+    price_cols = ["NASDAQ100", "SP500", "SOX", "RUSSELL2000", "DXY", "USDKRW", "USDJPY", "GOLD", "WTI", "COPPER_GOLD"]
     for col in price_cols:
         if col in df:
             s = pd.to_numeric(df[col], errors="coerce")
@@ -98,12 +98,24 @@ def analog_feature_columns(frame: pd.DataFrame) -> list[str]:
         "cyclical_china_stress",
         "inflation_supply_stress",
         "hedge_demand",
+        "rai_appetite_stress",
+        "universe_breadth_stress",
+        "safe_rotation_stress",
+        "RAI_z",
+        "RAI_level_0_100",
+        "RAI_20d_change",
+        "RAI_shock_score",
+        "RAI_overheat_score",
+        "ETF_risk_breadth_pct",
+        "ETF_breadth_shock_score",
+        "SAFE_ROTATION_shock_score",
         "NASDAQ100",
         "SOX",
         "SP500",
         "RUSSELL2000",
         "DXY",
         "USDKRW",
+        "USDJPY",
         "US10Y",
         "US2Y",
         "VIX",
@@ -121,7 +133,7 @@ def analog_feature_columns(frame: pd.DataFrame) -> list[str]:
         "KOSDAQ_KOSPI",
     ]
     cols = [c for c in base if c in frame and pd.api.types.is_numeric_dtype(frame[c])]
-    for col in ["NASDAQ100", "SOX", "SP500", "RUSSELL2000", "DXY", "USDKRW", "US10Y", "VIX", "HY_OAS", "COPPER_GOLD"]:
+    for col in ["NASDAQ100", "SOX", "SP500", "RUSSELL2000", "DXY", "USDKRW", "USDJPY", "US10Y", "VIX", "HY_OAS", "COPPER_GOLD", "RAI_z", "ETF_risk_breadth_pct"]:
         if col in frame:
             s = pd.to_numeric(frame[col], errors="coerce")
             frame[f"{col}_ret_5d_pt"] = s.pct_change(5)
@@ -137,7 +149,7 @@ def rolling_z(s: pd.Series, window: int) -> pd.Series:
     return (s - mean) / std
 
 
-def build_point_in_time_analog_features(panel: pd.DataFrame, ks: list[int], min_history_days: int, exclude_recent_days: int) -> pd.DataFrame:
+def build_point_in_time_analog_features(panel: pd.DataFrame, ks: list[int], min_history_days: int, exclude_recent_days: int, analog_step_days: int = 5) -> pd.DataFrame:
     out = panel.copy()
     cols = analog_feature_columns(out)
     targets = [
@@ -163,38 +175,55 @@ def build_point_in_time_analog_features(panel: pd.DataFrame, ks: list[int], min_
         out[f"analog_k{k}_neighbor_count"] = 0
 
     x_all = out[cols].apply(pd.to_numeric, errors="coerce").replace([np.inf, -np.inf], np.nan)
+    x_values = x_all.to_numpy(dtype=float)
     for i in range(len(out)):
         if i < min_history_days:
+            continue
+        if analog_step_days > 1 and i % analog_step_days != 0 and i != len(out) - 1:
             continue
         hist_end = i - exclude_recent_days
         if hist_end <= min_history_days // 2:
             continue
-        hist_idx = np.arange(0, hist_end)
-        hist_x = x_all.iloc[hist_idx]
-        current_x = x_all.iloc[[i]]
-        valid_cols = [c for c in cols if hist_x[c].notna().mean() > 0.8 and pd.notna(current_x[c].iloc[0])]
-        if len(valid_cols) < 10:
+        hist_matrix = x_values[:hist_end]
+        current = x_values[i]
+        valid = np.isfinite(current) & (np.isfinite(hist_matrix).mean(axis=0) > 0.8)
+        if int(valid.sum()) < 10:
             continue
-        train_x = hist_x[valid_cols].copy()
-        means = train_x.mean()
-        stds = train_x.std().replace(0, np.nan)
-        z_hist = ((train_x - means) / stds).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-        z_cur = ((current_x[valid_cols].iloc[0] - means) / stds).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-        dist = np.sqrt(((z_hist - z_cur) ** 2).mean(axis=1))
-        dist = dist.replace([np.inf, -np.inf], np.nan).dropna()
-        if dist.empty:
+        hist_v = hist_matrix[:, valid]
+        cur_v = current[valid]
+        means = np.nanmean(hist_v, axis=0)
+        stds = np.nanstd(hist_v, axis=0)
+        good = np.isfinite(means) & np.isfinite(stds) & (stds > 1e-12) & np.isfinite(cur_v)
+        if int(good.sum()) < 10:
             continue
-        ranked = dist.sort_values()
+        hist_v = hist_v[:, good]
+        cur_v = cur_v[good]
+        means = means[good]
+        stds = stds[good]
+        z_hist = (hist_v - means) / stds
+        z_cur = (cur_v - means) / stds
+        z_hist = np.where(np.isfinite(z_hist), z_hist, 0.0)
+        z_cur = np.where(np.isfinite(z_cur), z_cur, 0.0)
+        distances = np.sqrt(np.mean((z_hist - z_cur) ** 2, axis=1))
+        finite = np.isfinite(distances)
+        if not finite.any():
+            continue
+        hist_positions = np.flatnonzero(finite)
+        distances = distances[finite]
+        order = np.argsort(distances)
         for k in ks:
-            neighbors = ranked.head(min(k, len(ranked)))
-            nidx = neighbors.index
+            take = order[: min(k, len(order))]
+            nidx = hist_positions[take]
+            neighbor_dist = distances[take]
             hist = out.loc[nidx]
-            out.loc[i, f"analog_k{k}_distance_mean"] = float(neighbors.mean())
-            out.loc[i, f"analog_k{k}_distance_min"] = float(neighbors.min())
-            out.loc[i, f"analog_k{k}_neighbor_count"] = int(len(neighbors))
+            out.loc[i, f"analog_k{k}_distance_mean"] = float(np.mean(neighbor_dist))
+            out.loc[i, f"analog_k{k}_distance_min"] = float(np.min(neighbor_dist))
+            out.loc[i, f"analog_k{k}_neighbor_count"] = int(len(neighbor_dist))
             fill_analog_stats(out, i, k, "nasdaq", hist, "NASDAQ100_fwd_1w", "NASDAQ100_fwd_1m", "NASDAQ100_fwd_min_1m", "label_nasdaq_down_1w", "label_nasdaq_down_1m", "label_nasdaq_tail_1m")
             fill_analog_stats(out, i, k, "sox", hist, "SOX_fwd_1w", "SOX_fwd_1m", "SOX_fwd_min_1m", "label_sox_down_1w", "label_sox_down_1m", "label_sox_down_1m")
 
+    analog_cols = [c for c in out.columns if c.startswith("analog_k")]
+    out[analog_cols] = out[analog_cols].ffill()
     return out
 
 
@@ -230,7 +259,27 @@ def walkforward_meta_model(panel: pd.DataFrame, min_train_days: int, retrain_ste
     from sklearn.preprocessing import StandardScaler
 
     out = panel.copy()
-    feature_cols = [c for c in out.columns if c.startswith("analog_k") or c in {"risk_off_score", "peak_fragility", "composite_vector_risk", "macro_liquidity_axis_x", "market_breakdown_axis_y", "external_supply_axis_z"}]
+    feature_cols = [
+        c
+        for c in out.columns
+        if c.startswith("analog_k")
+        or c
+        in {
+            "risk_off_score",
+            "peak_fragility",
+            "composite_vector_risk",
+            "macro_liquidity_axis_x",
+            "market_breakdown_axis_y",
+            "external_supply_axis_z",
+            "rai_appetite_stress",
+            "universe_breadth_stress",
+            "safe_rotation_stress",
+            "RAI_z",
+            "RAI_shock_score",
+            "RAI_overheat_score",
+            "ETF_breadth_shock_score",
+        }
+    ]
     feature_cols = [c for c in feature_cols if pd.api.types.is_numeric_dtype(out[c])]
     targets = [
         ("nasdaq_down_1w", "label_nasdaq_down_1w"),

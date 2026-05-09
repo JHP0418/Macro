@@ -18,8 +18,30 @@ KOREAN_LABELS = {
     "name": "이름",
     "group": "자산군",
     "rank": "순위",
+    "basket_rank": "바스켓 순위",
     "n": "개수",
+    "basket": "바스켓",
+    "asset_count": "ETF 수",
+    "basket_score_0_100": "바스켓 점수",
+    "basket_upside_prob_1w": "바스켓 1주 상승확률",
+    "basket_upside_prob_4w": "바스켓 1개월 상승확률",
+    "basket_prob_1w": "바스켓 1주 확률",
+    "basket_prob_1m": "바스켓 1개월 확률",
+    "basket_return_20d": "바스켓 20일 수익률",
+    "basket_risk_penalty": "바스켓 위험 패널티",
+    "basket_realized_return_1w": "바스켓 실제 1주",
+    "basket_realized_return_1m": "바스켓 실제 1개월",
+    "pred_top_avg_return": "예측 1등 평균수익률",
+    "actual_top1_in_pred_top3_rate": "실제 1등 예측 Top3 포함률",
+    "top3_overlap_rate": "Top3 겹침률",
+    "top_symbols": "상위 코드",
+    "top_names": "상위 ETF",
     "score_0_100": "종합점수",
+    "institutional_score_0_100": "기관형 점수",
+    "calibrated_prob_1w": "보정 1주 확률",
+    "calibrated_prob_4w": "보정 1개월 확률",
+    "realized_return_1w": "실제 1주 수익률",
+    "realized_return_4w": "실제 1개월 수익률",
     "avg_score": "평균점수",
     "top_score": "최고점수",
     "upside_prob_1w": "1주 상승확률",
@@ -32,15 +54,6 @@ KOREAN_LABELS = {
     "avg_driver_fit": "평균 매크로 적합도",
     "return_20d": "20일 수익률",
     "drawdown_252d": "1년 고점대비 낙폭",
-    "bubble_score_0_100": "LPPL 버블점수",
-    "max_bubble_score": "최대 버블점수",
-    "lppl_risk_label": "LPPL 위험라벨",
-    "lppl_dtc": "LPPL 임계시점 근접도",
-    "max_lppl_dtc": "최대 임계시점 근접도",
-    "lppl_dtcai": "LPPL DTCAI",
-    "lppl_tc": "LPPL 예상 임계시점",
-    "lppl_beta": "LPPL 베타",
-    "lppl_omega": "LPPL 오메가",
     "risk_penalty": "위험 패널티",
     "max_risk_penalty": "최대 위험 패널티",
     "similarity_distance": "유사도 거리",
@@ -71,6 +84,14 @@ KOREAN_LABELS = {
     "peak_fragility": "고점 취약성",
     "analog_macro_risk": "유사환경 위험",
     "correction_pressure": "조정 압력",
+    "rai_appetite_stress": "RAI 위험선호 붕괴",
+    "universe_breadth_stress": "ETF 유니버스 breadth 악화",
+    "safe_rotation_stress": "안전자산 로테이션",
+    "RAI_z": "RAI z-score",
+    "RAI_level_0_100": "RAI 수준",
+    "RAI_shock_score": "RAI 충격점수",
+    "RAI_overheat_score": "RAI 과열점수",
+    "ETF_breadth_shock_score": "ETF breadth 충격점수",
     "correction_pressure_score_0_100": "조정 압력점수",
     "correction_pressure_state": "조정 압력 상태",
     "correction_1w_drop_prob": "1주 급락확률",
@@ -117,6 +138,44 @@ KOREAN_LABELS = {
     "roc_auc": "ROC-AUC",
     "brier": "Brier 점수",
 }
+
+KOREAN_LABELS.update(
+    {
+        "model": "모델",
+        "description": "설명",
+        "false_alarm_rate": "오경보율",
+        "avg_forward_return_when_signal": "신호 후 평균수익률",
+        "avg_forward_drawdown_when_signal": "신호 후 평균낙폭",
+        "risk_off_avoidance_score": "위험회피 최적점수",
+        "peak_correction_score": "고점/조정 점수",
+        "crash_sentinel_score": "급락 Sentinel 점수",
+        "optimized_action": "최적화 액션",
+        "bucket": "오경보 분류",
+        "count": "건수",
+        "rate": "비율",
+        "avg_forward_return": "평균 이후수익률",
+        "avg_forward_drawdown": "평균 이후낙폭",
+        "top1_hit_rate": "Top1 적중률",
+        "top3_hit_rate": "Top3 적중률",
+        "pred_top1_avg_return": "예측 Top1 평균수익률",
+        "pred_top3_avg_return": "예측 Top3 평균수익률",
+        "safe_universe_avg_return": "안전자산 평균수익률",
+        "avg_topk_return": "TopK 평균수익률",
+        "avg_universe_return": "유니버스 평균수익률",
+        "topk_overlap_rate": "TopK 겹침률",
+        "top1_exact_hit_rate": "Top1 정확 적중률",
+        "actual_top1_in_pred_topk_rate": "실제 Top1 예측TopK 포함률",
+        "family": "자산군 Calibration",
+        "raw_brier": "원확률 Brier",
+        "calibrated_brier": "보정확률 Brier",
+        "raw_avg_prob": "원확률 평균",
+        "calibrated_avg_prob": "보정확률 평균",
+        "actual_rate": "실제 발생률",
+        "model_regime": "모델 Regime",
+        "safe_score": "안전자산 점수",
+        "model_version": "모델 버전",
+    }
+)
 
 GROUP_LABELS = {
     "Korea semiconductor": "한국 반도체",
@@ -170,6 +229,19 @@ DRIVER_LABELS = {
     "KOSDAQ_KOSPI": "코스닥/코스피",
 }
 
+REGIME_COLORS = {
+    "Calm Risk-On": "#d9ead3",
+    "Peak Warning": "#fff2cc",
+    "Peak Fragility": "#eadcf8",
+    "Mixed/Transition": "#e7edf7",
+    "Credit/Liquidity Shock": "#f4cccc",
+    "FX/External Stress": "#d9eaf7",
+    "Inflation/Supply Shock": "#f9cb9c",
+    "Technical Equity Breakdown": "#f4cccc",
+    "Cyclical/China Stress": "#eadcf8",
+    "Full Risk-Off": "#d9d2e9",
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate Korean HTML screening dashboard.")
@@ -197,26 +269,37 @@ def main() -> None:
 def load_inputs() -> dict[str, pd.DataFrame]:
     paths = {
         "risk_vector": ROOT / "outputs/risk_vector_dashboard_latest/tables/daily_risk_vector.csv",
-        "asset_scores": ROOT / "outputs/rwkv_lppl_asset_screener_latest/tables/current_asset_scores_rwkv_lppl.csv",
+        "asset_scores": ROOT / "outputs/macro_regime_asset_screener_latest/tables/current_asset_scores.csv",
+        "basket_scores": ROOT / "outputs/macro_regime_asset_screener_latest/tables/current_basket_scores.csv",
         "driver_state": ROOT / "outputs/macro_regime_asset_screener_latest/tables/driver_state.csv",
         "driver_panel": ROOT / "outputs/macro_regime_asset_screener_latest/tables/driver_panel.csv",
         "safe_eval": ROOT / "outputs/risk_off_short_horizon_model_latest/tables/safe_asset_top_pick_1w_3w_evaluation.csv",
         "risk_confusion": ROOT / "outputs/risk_off_short_horizon_model_latest/tables/severe_weekly_risk_off_confusion_matrix.csv",
         "peak_validation": ROOT / "outputs/peak_fragility_model_latest/tables/peak_fragility_validation.csv",
         "analog_validation": ROOT / "outputs/analog_macro_risk_model_latest/tables/analog_macro_validation.csv",
+        "optimizer_current": ROOT / "outputs/risk_model_walkforward_optimizer_latest/tables/current_optimized_risk_signal.csv",
+        "optimizer_calibration": ROOT / "outputs/risk_model_walkforward_optimizer_latest/tables/risk_probability_calibration_validation.csv",
+        "optimizer_threshold": ROOT / "outputs/risk_model_walkforward_optimizer_latest/tables/risk_threshold_optimization.csv",
+        "optimizer_high_conf": ROOT / "outputs/risk_model_walkforward_optimizer_latest/tables/high_confidence_rule_validation.csv",
+        "optimizer_false_alarm": ROOT / "outputs/risk_model_walkforward_optimizer_latest/tables/false_alarm_taxonomy.csv",
+        "optimizer_safe": ROOT / "outputs/risk_model_walkforward_optimizer_latest/tables/safe_asset_selector_validation.csv",
+        "optimizer_current_safe": ROOT / "outputs/risk_model_walkforward_optimizer_latest/tables/current_safe_asset_recommendations.csv",
+        "optimizer_rank": ROOT / "outputs/risk_model_walkforward_optimizer_latest/tables/fast_weekly_rank_summary.csv",
+        "weekly_basket_summary": ROOT / "outputs/weekly_screening_rank_backtest_latest/tables/weekly_basket_backtest_summary.csv",
+        "weekly_basket_current": ROOT / "outputs/weekly_screening_rank_backtest_latest/tables/latest_basket_scores.csv",
+        "weekly_basket_constituents": ROOT / "outputs/weekly_screening_rank_backtest_latest/tables/latest_basket_constituent_scores.csv",
     }
     out: dict[str, pd.DataFrame] = {}
     for name, path in paths.items():
         if not path.exists():
             out[name] = pd.DataFrame()
             continue
-        parse_dates = ["Date"] if name in {"risk_vector", "driver_panel"} else None
+        parse_dates = ["Date"] if name in {"risk_vector", "driver_panel", "optimizer_current"} else None
         out[name] = pd.read_csv(path, parse_dates=parse_dates)
     return out
 
 
-def create_recent_market_charts(data: dict[str, pd.DataFrame], charts_dir: Path) -> dict[str, Path]:
-    import matplotlib.dates as mdates
+def create_recent_market_charts(data: dict[str, pd.DataFrame], charts_dir: Path) -> dict[str, object]:
     import matplotlib.pyplot as plt
 
     charts_dir.mkdir(parents=True, exist_ok=True)
@@ -224,7 +307,9 @@ def create_recent_market_charts(data: dict[str, pd.DataFrame], charts_dir: Path)
     plt.rcParams["axes.unicode_minus"] = False
 
     panel = build_market_panel(data)
-    paths: dict[str, Path] = {}
+    paths: dict[str, object] = {}
+    if panel.empty:
+        return paths
     for months in (12, 6):
         cut = panel["Date"].max() - pd.DateOffset(months=months)
         y = panel[panel["Date"].ge(cut)].copy()
@@ -233,6 +318,7 @@ def create_recent_market_charts(data: dict[str, pd.DataFrame], charts_dir: Path)
         path = charts_dir / f"market_risk_recent_{months}m.png"
         plot_recent_market_chart(y, months, path)
         paths[f"market_{months}m"] = path
+    paths.update(create_yearly_nasdaq_risk_regime_charts(panel, charts_dir / "yearly_nasdaq_risk_regime"))
     return paths
 
 
@@ -253,6 +339,9 @@ def build_market_panel(data: dict[str, pd.DataFrame]) -> pd.DataFrame:
         "risk_phase",
         "analog_macro_risk",
         "correction_pressure",
+        "rai_appetite_stress",
+        "universe_breadth_stress",
+        "safe_rotation_stress",
         "analog_down_prob_1w_model",
         "analog_down_prob_1m_model",
         "analog_tail_prob_1m_model",
@@ -379,6 +468,164 @@ def plot_normalized(ax, frame: pd.DataFrame, mapping: dict[str, str], colors: di
         ax.plot(dates, s / s.iloc[0] * 100.0, label=label, color=colors.get(label, None), lw=1.8)
 
 
+def create_yearly_nasdaq_risk_regime_charts(panel: pd.DataFrame, yearly_dir: Path) -> dict[str, object]:
+    import matplotlib.pyplot as plt
+    import matplotlib.image as mpimg
+
+    yearly_dir.mkdir(parents=True, exist_ok=True)
+    required = {"Date", "NASDAQ100"}
+    if panel.empty or not required.issubset(panel.columns):
+        return {}
+
+    frame = panel.copy()
+    frame["Date"] = pd.to_datetime(frame["Date"])
+    frame["NASDAQ100"] = pd.to_numeric(frame["NASDAQ100"], errors="coerce")
+    frame = frame.dropna(subset=["Date", "NASDAQ100"]).sort_values("Date")
+    if frame.empty:
+        return {}
+
+    chart_paths: list[Path] = []
+    summary_rows: list[dict[str, object]] = []
+    for year, y in frame.groupby(frame["Date"].dt.year):
+        if year < 1995 or y["NASDAQ100"].notna().sum() < 20:
+            continue
+        path = yearly_dir / f"nasdaq_risk_regime_{year}.png"
+        plot_yearly_nasdaq_risk_regime(y.copy(), int(year), path)
+        chart_paths.append(path)
+        risk_mean = safe_float(pd.to_numeric(y.get("composite_vector_risk", pd.Series(dtype=float)), errors="coerce").mean())
+        risk_max = safe_float(pd.to_numeric(y.get("composite_vector_risk", pd.Series(dtype=float)), errors="coerce").max())
+        peak_max = safe_float(pd.to_numeric(y.get("peak_fragility", pd.Series(dtype=float)), errors="coerce").max())
+        regime_col = "risk_archetype" if "risk_archetype" in y else "risk_phase"
+        dominant_regime = ""
+        if regime_col in y and y[regime_col].notna().any():
+            dominant_regime = translate_state(y[regime_col].dropna().astype(str).mode().iloc[0])
+        summary_rows.append(
+            {
+                "year": int(year),
+                "nasdaq_return": y["NASDAQ100"].iloc[-1] / y["NASDAQ100"].iloc[0] - 1.0,
+                "avg_composite_risk": risk_mean,
+                "max_composite_risk": risk_max,
+                "max_peak_fragility": peak_max,
+                "dominant_regime": dominant_regime,
+            }
+        )
+
+    if not chart_paths:
+        return {}
+
+    pd.DataFrame(summary_rows).to_csv(yearly_dir / "yearly_nasdaq_risk_regime_summary.csv", index=False, encoding="utf-8-sig")
+    contact_path = yearly_dir / "nasdaq_risk_regime_1995_to_now_contact_sheet.png"
+    cols = 2
+    rows = int(np.ceil(len(chart_paths) / cols))
+    fig, axes = plt.subplots(rows, cols, figsize=(20, max(4.2 * rows, 8)), dpi=120)
+    axes_arr = np.atleast_1d(axes).ravel()
+    for ax, img_path in zip(axes_arr, chart_paths):
+        img = mpimg.imread(img_path)
+        ax.imshow(img)
+        ax.axis("off")
+    for ax in axes_arr[len(chart_paths) :]:
+        ax.axis("off")
+    fig.suptitle("1995년 이후 연도별 나스닥100 · 위험점수 · Regime", fontsize=22, fontweight="bold")
+    fig.tight_layout(rect=[0, 0, 1, 0.985])
+    fig.savefig(contact_path, bbox_inches="tight")
+    plt.close(fig)
+    return {
+        "yearly_nasdaq_risk_contact_sheet": contact_path,
+        "yearly_nasdaq_risk_charts": chart_paths,
+    }
+
+
+def plot_yearly_nasdaq_risk_regime(y: pd.DataFrame, year: int, path: Path) -> None:
+    import matplotlib.dates as mdates
+    import matplotlib.pyplot as plt
+
+    y = y.sort_values("Date").copy()
+    regime_col = "risk_archetype" if "risk_archetype" in y else "risk_phase"
+    if regime_col not in y:
+        regime_col = "risk_archetype"
+        y[regime_col] = "Mixed/Transition"
+    else:
+        y[regime_col] = y[regime_col].fillna("Mixed/Transition").astype(str)
+    start = y["NASDAQ100"].dropna().iloc[0]
+    y["NASDAQ_norm"] = y["NASDAQ100"] / start * 100.0
+
+    fig, axes = plt.subplots(3, 1, figsize=(15.5, 8.6), dpi=145, sharex=True, gridspec_kw={"height_ratios": [2.2, 1.45, 0.55]})
+    fig.patch.set_facecolor("white")
+    for ax in axes:
+        ax.set_facecolor("#fbfbfb")
+        ax.grid(True, axis="y", color="#e6e6e6", lw=0.8)
+
+    shade_regime_background(axes[0], y, regime_col)
+    axes[0].plot(y["Date"], y["NASDAQ_norm"], color="#1f77b4", lw=2.2, label="나스닥100")
+    axes[0].set_ylabel("나스닥100\n(연초=100)")
+    axes[0].legend(loc="upper left", fontsize=9)
+
+    risk_lines = [
+        ("composite_vector_risk", "종합 위험", "#111827", 2.2),
+        ("risk_off_score", "Risk-Off", "#c00000", 1.7),
+        ("peak_fragility", "고점 취약성", "#7030a0", 1.6),
+        ("analog_macro_risk", "유사환경 위험", "#0f766e", 1.5),
+        ("correction_pressure", "조정 압력", "#d97706", 1.5),
+    ]
+    for col, label, color, lw in risk_lines:
+        if col not in y:
+            continue
+        s = pd.to_numeric(y[col], errors="coerce")
+        if s.notna().sum() == 0:
+            continue
+        axes[1].plot(y["Date"], s, label=label, color=color, lw=lw)
+    for level, label in [(35, "주의"), (50, "위험"), (65, "현금/방어")]:
+        axes[1].axhline(level, color="#bfbfbf", lw=0.85, ls="--")
+        axes[1].text(y["Date"].min(), level + 1.0, label, fontsize=8, color="#666666")
+    axes[1].set_ylim(0, 100)
+    axes[1].set_ylabel("위험 점수")
+    axes[1].legend(loc="upper left", ncol=5, fontsize=8)
+
+    plot_regime_band(axes[2], y, regime_col)
+    axes[2].set_yticks([])
+    axes[2].set_ylabel("Regime")
+    axes[2].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    axes[2].xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+
+    ret = y["NASDAQ100"].iloc[-1] / y["NASDAQ100"].iloc[0] - 1.0
+    max_risk = pd.to_numeric(y.get("composite_vector_risk", pd.Series(dtype=float)), errors="coerce").max()
+    fig.suptitle(f"{year} 나스닥100과 Risk-Off Sentinel / 동적 Regime  |  연간 나스닥 {ret:.1%}, 최대 위험 {safe_float(max_risk):.1f}", fontsize=16, fontweight="bold")
+    fig.tight_layout(rect=[0, 0, 1, 0.955])
+    fig.savefig(path, bbox_inches="tight")
+    plt.close(fig)
+
+
+def regime_spans(frame: pd.DataFrame, regime_col: str) -> list[tuple[pd.Timestamp, pd.Timestamp, str]]:
+    if frame.empty:
+        return []
+    spans: list[tuple[pd.Timestamp, pd.Timestamp, str]] = []
+    dates = list(pd.to_datetime(frame["Date"]))
+    regimes = list(frame[regime_col].fillna("Mixed/Transition").astype(str))
+    start_idx = 0
+    for i in range(1, len(frame)):
+        if regimes[i] != regimes[start_idx]:
+            spans.append((dates[start_idx], dates[i - 1], regimes[start_idx]))
+            start_idx = i
+    spans.append((dates[start_idx], dates[-1], regimes[start_idx]))
+    return spans
+
+
+def shade_regime_background(ax, frame: pd.DataFrame, regime_col: str) -> None:
+    for start, end, regime in regime_spans(frame, regime_col):
+        ax.axvspan(start, end, color=REGIME_COLORS.get(regime, "#eeeeee"), alpha=0.38, lw=0)
+
+
+def plot_regime_band(ax, frame: pd.DataFrame, regime_col: str) -> None:
+    for start, end, regime in regime_spans(frame, regime_col):
+        color = REGIME_COLORS.get(regime, "#eeeeee")
+        ax.axvspan(start, end, color=color, alpha=0.95, lw=0)
+        days = max((end - start).days, 1)
+        if days >= 18:
+            mid = start + (end - start) / 2
+            ax.text(mid, 0.5, translate_state(regime), ha="center", va="center", fontsize=8, color="#263238")
+    ax.set_ylim(0, 1)
+
+
 def find_similar_macro_risk_days(risk_vector: pd.DataFrame, driver_panel: pd.DataFrame, n: int) -> pd.DataFrame:
     if risk_vector.empty or driver_panel.empty:
         return pd.DataFrame()
@@ -467,7 +714,7 @@ def group_summary(asset_scores: pd.DataFrame) -> pd.DataFrame:
     if asset_scores.empty:
         return pd.DataFrame()
     df = asset_scores.copy()
-    for col in ["score_0_100", "upside_prob_1w", "upside_prob_4w", "technical_score", "driver_fit_score", "bubble_score_0_100", "lppl_dtcai", "lppl_dtc", "risk_penalty"]:
+    for col in ["score_0_100", "upside_prob_1w", "upside_prob_4w", "technical_score", "driver_fit_score", "risk_penalty"]:
         if col in df:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     summary = (
@@ -480,8 +727,6 @@ def group_summary(asset_scores: pd.DataFrame) -> pd.DataFrame:
             avg_upside_4w=("upside_prob_4w", "mean"),
             avg_technical=("technical_score", "mean"),
             avg_driver_fit=("driver_fit_score", "mean"),
-            max_bubble_score=("bubble_score_0_100", "max"),
-            max_lppl_dtc=("lppl_dtc", "max"),
             max_risk_penalty=("risk_penalty", "max"),
         )
         .sort_values("avg_score", ascending=False)
@@ -489,13 +734,19 @@ def group_summary(asset_scores: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
-def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: pd.DataFrame, chart_paths: dict[str, Path], top_assets: int) -> str:
+def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: pd.DataFrame, chart_paths: dict[str, object], top_assets: int) -> str:
     risk = data["risk_vector"]
     current = risk.tail(1).iloc[0] if not risk.empty else pd.Series(dtype=object)
     assets = data["asset_scores"].copy()
     if not assets.empty:
         assets = assets.sort_values("score_0_100", ascending=False).head(top_assets)
         assets["group"] = assets["group"].map(lambda x: GROUP_LABELS.get(str(x), str(x)))
+    basket_scores = data.get("basket_scores", pd.DataFrame()).copy()
+    weekly_basket_current = data.get("weekly_basket_current", pd.DataFrame()).copy()
+    weekly_basket_summary = data.get("weekly_basket_summary", pd.DataFrame()).copy()
+    weekly_basket_constituents = data.get("weekly_basket_constituents", pd.DataFrame()).copy()
+    if not weekly_basket_constituents.empty:
+        weekly_basket_constituents = weekly_basket_constituents.sort_values(["basket", "basket_rank"]).groupby("basket").head(8)
     grouped = grouped.copy()
     if not grouped.empty:
         grouped["group"] = grouped["group"].map(lambda x: GROUP_LABELS.get(str(x), str(x)))
@@ -514,6 +765,7 @@ def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: p
         ("고점 취약성", num(current.get("peak_fragility")), "고점권 조정 가능성"),
         ("유사환경 위험", num(current.get("analog_macro_risk")), "과거 유사 국면 기반"),
         ("조정 압력", num(current.get("correction_pressure")), "1주/1개월 조정 타이밍"),
+        ("RAI", num(current.get("rai_appetite_stress")), "위험선호 붕괴/공포"),
         ("위험 유형", translate_state(current.get("risk_archetype", "")), "현재 위험의 성격"),
         ("주도 위험축", translate_state(current.get("dominant_risk_vector", "")), "가장 큰 위험 원인"),
         ("위험 단계", translate_state(current.get("risk_phase", "")), "Normal/Warning/Risk-Off"),
@@ -529,6 +781,9 @@ def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: p
         ("원자재/공급 충격", current.get("inflation_supply_stress", 0)),
         ("유사환경 위험", current.get("analog_macro_risk", 0)),
         ("조정 압력", current.get("correction_pressure", 0)),
+        ("RAI 위험선호 붕괴", current.get("rai_appetite_stress", 0)),
+        ("ETF breadth 악화", current.get("universe_breadth_stress", 0)),
+        ("안전자산 로테이션", current.get("safe_rotation_stress", 0)),
     ]
     return f"""<!doctype html>
 <html lang="ko">
@@ -556,6 +811,9 @@ def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: p
     .card .note {{ color:var(--muted); font-size:12px; margin-top:6px; }}
     .hero-chart {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }}
     .hero-chart img {{ min-height:520px; object-fit:contain; }}
+    .year-grid {{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }}
+    .year-grid article {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; }}
+    .year-grid h3 {{ margin:0 0 8px; font-size:14px; }}
     .barrow {{ display:grid; grid-template-columns:210px 1fr 58px; gap:10px; align-items:center; margin:9px 0; }}
     .bar {{ height:12px; border-radius:999px; background:#e5e7eb; overflow:hidden; }}
     .bar span {{ display:block; height:100%; background:linear-gradient(90deg,#60a5fa,#fbbf24,#dc2626); }}
@@ -567,13 +825,13 @@ def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: p
     .table-wrap {{ overflow:auto; border-radius:8px; }}
     img {{ width:100%; height:auto; display:block; border:1px solid var(--line); border-radius:8px; background:white; }}
     .muted {{ color:var(--muted); }}
-    @media (max-width:1200px) {{ .cards,.two {{ grid-template-columns:1fr; }} .hero-chart img {{ min-height:0; }} }}
+    @media (max-width:1200px) {{ .cards,.two,.year-grid {{ grid-template-columns:1fr; }} .hero-chart img {{ min-height:0; }} }}
   </style>
 </head>
 <body>
 <header>
   <h1>매크로 퀀트 스크리닝 대시보드</h1>
-  <p>기준일 {asof} · 위험점수, 미국/한국/일본 지수, 원자재, Risk Vector, 유사환경 위험, Peak Fragility, LPPL 통합 화면</p>
+  <p>기준일 {asof} · 위험점수, 미국/한국/일본 지수, 원자재, Risk Vector, RAI, 유사환경 위험, Peak Fragility 통합 화면</p>
 </header>
 <main>
   <section class="grid cards">
@@ -588,6 +846,17 @@ def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: p
   <section class="hero-chart">
     <h2>최근 6개월: 위험점수 + 미국지수 + 한국/일본지수 + 원자재</h2>
     {img_tag(chart_paths.get("market_6m"))}
+  </section>
+
+  <section class="hero-chart">
+    <h2>1995년 이후 연도별 나스닥100 · 위험점수 · Regime</h2>
+    <p class="muted">각 연도별로 나스닥100을 연초 100으로 정규화하고, 종합 위험·Risk-Off·고점 취약성·유사환경 위험·조정 압력과 동적 Regime 배경을 함께 표시합니다.</p>
+    {img_tag(chart_paths.get("yearly_nasdaq_risk_contact_sheet"))}
+  </section>
+
+  <section>
+    <h2>연도별 상세 차트</h2>
+    <div class="year-grid">{yearly_gallery_html(chart_paths.get("yearly_nasdaq_risk_charts"))}</div>
   </section>
 
   <section class="grid two">
@@ -619,13 +888,30 @@ def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: p
       {img_tag(old_chart_paths["peak_sheet"])}
     </div>
     <div>
-      <h2>자산군 요약</h2>
-      <div class="table-wrap">{df_to_html(grouped, ["group","n","avg_score","top_score","avg_upside_1w","avg_upside_4w","avg_technical","avg_driver_fit","max_bubble_score","max_lppl_dtc","max_risk_penalty"])}</div>
+      <h2>세부 자산군 요약</h2>
+      <div class="table-wrap">{df_to_html(grouped, ["group","n","avg_score","top_score","avg_upside_1w","avg_upside_4w","avg_technical","avg_driver_fit","max_risk_penalty"])}</div>
     </div>
   </section>
 
   <section>
-    <h2>상위 스크리닝 자산과 LPPL 지표</h2>
+    <h2>GAPS 바스켓 투자매력도</h2>
+    <p class="muted">해외지수, 해외섹터, 국내지수, 국내섹터, FX및 원자재, 국내/해외 채권과 초단기채권으로 나눠 바스켓 점수를 계산했습니다.</p>
+    <div class="table-wrap">{df_to_html(basket_scores if not basket_scores.empty else weekly_basket_current, ["basket_rank","basket","asset_count","basket_score_0_100","basket_upside_prob_1w","basket_upside_prob_4w","basket_prob_1w","basket_prob_1m","basket_return_20d","basket_risk_penalty","top_symbols","top_names"])}</div>
+  </section>
+
+  <section class="grid two">
+    <div>
+      <h2>바스켓 Walk-Forward 성능</h2>
+      <div class="table-wrap">{df_to_html(weekly_basket_summary, ["horizon","weeks","pred_top_avg_return","basket_avg_return","top1_hit_rate","actual_top1_in_pred_top3_rate","top3_overlap_rate"])}</div>
+    </div>
+    <div>
+      <h2>바스켓 내부 상위 ETF</h2>
+      <div class="table-wrap">{df_to_html(weekly_basket_constituents, ["basket","basket_rank","symbol","name","group","institutional_score_0_100","calibrated_prob_1w","calibrated_prob_4w","realized_return_1w","realized_return_4w"])}</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>상위 스크리닝 자산과 핵심 지표</h2>
     <div class="table-wrap">{asset_table(assets)}</div>
   </section>
 
@@ -676,7 +962,7 @@ def current_interpretation(current: pd.Series) -> str:
 
 
 def asset_table(df: pd.DataFrame) -> str:
-    cols = ["rank", "symbol", "name", "group", "score_0_100", "upside_prob_1w", "upside_prob_4w", "technical_score", "driver_fit_score", "return_20d", "drawdown_252d", "bubble_score_0_100", "lppl_risk_label", "lppl_dtc", "lppl_dtcai", "lppl_tc", "lppl_beta", "lppl_omega", "risk_penalty"]
+    cols = ["rank", "symbol", "name", "group", "score_0_100", "upside_prob_1w", "upside_prob_4w", "technical_score", "driver_fit_score", "return_20d", "drawdown_252d", "risk_penalty"]
     return df_to_html(df, cols)
 
 
@@ -726,6 +1012,84 @@ def driver_table(df: pd.DataFrame) -> str:
 
 def validation_html(data: dict[str, pd.DataFrame]) -> str:
     chunks = []
+    opt_current = data.get("optimizer_current", pd.DataFrame())
+    if not opt_current.empty:
+        chunks.append("<h3>Walk-Forward 최적화 현재 신호</h3>")
+        chunks.append(
+            df_to_html(
+                opt_current,
+                [
+                    "Date",
+                    "risk_off_avoidance_score",
+                    "peak_correction_score",
+                    "crash_sentinel_score",
+                    "peak_fragility",
+                    "analog_macro_risk",
+                    "correction_pressure",
+                    "RAI_z",
+                    "RAI_overheat_score",
+                    "ETF_breadth_shock_score",
+                    "model_regime",
+                    "optimized_action",
+                ],
+            )
+        )
+    opt_cal = data.get("optimizer_calibration", pd.DataFrame())
+    if not opt_cal.empty:
+        chunks.append("<h3>자산군/Regime별 확률 Calibration</h3>")
+        chunks.append(
+            df_to_html(
+                opt_cal,
+                ["target", "family", "samples", "actual_rate", "raw_avg_prob", "calibrated_avg_prob", "raw_brier", "calibrated_brier"],
+            )
+        )
+    opt_threshold = data.get("optimizer_threshold", pd.DataFrame())
+    if not opt_threshold.empty:
+        chunks.append("<h3>Walk-Forward Threshold 최적화</h3>")
+        chunks.append(
+            df_to_html(
+                best_optimizer_rows(opt_threshold),
+                [
+                    "target",
+                    "model",
+                    "samples",
+                    "positive_rate",
+                    "signal_rate",
+                    "accuracy",
+                    "precision",
+                    "recall",
+                    "false_alarm_rate",
+                    "roc_auc",
+                    "avg_forward_drawdown_when_signal",
+                ],
+            )
+        )
+    opt_false = data.get("optimizer_false_alarm", pd.DataFrame())
+    if not opt_false.empty:
+        chunks.append("<h3>오경보 분해</h3>")
+        chunks.append(df_to_html(opt_false.head(16), ["target", "bucket", "count", "rate", "avg_forward_return", "avg_forward_drawdown"]))
+    opt_safe = data.get("optimizer_safe", pd.DataFrame())
+    if not opt_safe.empty and "row_type" in opt_safe:
+        chunks.append("<h3>Risk-Off 안전자산 선택 검증</h3>")
+        chunks.append(
+            df_to_html(
+                opt_safe[opt_safe["row_type"].eq("summary")],
+                ["horizon", "signal_weeks", "top1_hit_rate", "top3_hit_rate", "pred_top1_avg_return", "pred_top3_avg_return", "safe_universe_avg_return"],
+            )
+        )
+    opt_current_safe = data.get("optimizer_current_safe", pd.DataFrame())
+    if not opt_current_safe.empty:
+        chunks.append("<h3>현재 안전자산 추천</h3>")
+        chunks.append(df_to_html(opt_current_safe, ["rank", "symbol", "name", "group", "safe_score", "return_20d"]))
+    opt_rank = data.get("optimizer_rank", pd.DataFrame())
+    if not opt_rank.empty:
+        chunks.append("<h3>Risk-On 빠른 랭킹 백테스트</h3>")
+        chunks.append(
+            df_to_html(
+                opt_rank,
+                ["horizon", "model_regime", "weeks", "avg_topk_return", "avg_universe_return", "topk_overlap_rate", "top1_exact_hit_rate", "actual_top1_in_pred_topk_rate"],
+            )
+        )
     for title, key in [("안전자산 1주/3주 선택 검증", "safe_eval"), ("주간 급락 Risk-Off 4분면 검증", "risk_confusion"), ("고점 취약성 모델 검증", "peak_validation"), ("유사환경 Analog 모델 검증", "analog_validation")]:
         df = data.get(key, pd.DataFrame())
         chunks.append(f"<h3>{esc(title)}</h3>")
@@ -733,11 +1097,20 @@ def validation_html(data: dict[str, pd.DataFrame]) -> str:
     return "\n".join(chunks)
 
 
+def best_optimizer_rows(frame: pd.DataFrame) -> pd.DataFrame:
+    out = frame.copy()
+    for col in ["recall", "precision", "signal_rate"]:
+        out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
+    out["objective"] = 1.6 * out["recall"] + out["precision"] - 0.35 * out["signal_rate"]
+    idx = out.groupby("target")["objective"].idxmax()
+    return out.loc[idx].drop(columns=["objective"]).sort_values("target")
+
+
 def df_to_html(df: pd.DataFrame, cols: list[str]) -> str:
     if df is None or df.empty:
         return "<p class='muted'>데이터가 없습니다.</p>"
     cols = [c for c in cols if c in df.columns]
-    left_cols = {"symbol", "name", "group", "driver", "risk_archetype", "risk_phase", "dominant_risk_vector", "lppl_risk_label", "prediction_used", "target", "criterion", "horizon"}
+    left_cols = {"symbol", "name", "group", "basket", "top_symbols", "top_names", "driver", "risk_archetype", "risk_phase", "dominant_risk_vector", "prediction_used", "target", "criterion", "horizon", "model", "description", "optimized_action", "bucket", "model_regime", "family", "model_version"}
     rows = ["<table><thead><tr>"]
     for c in cols:
         cls = "left" if c in left_cols else ""
@@ -753,10 +1126,22 @@ def df_to_html(df: pd.DataFrame, cols: list[str]) -> str:
     return "".join(rows)
 
 
-def img_tag(path: Path | None) -> str:
-    if path is None:
+def img_tag(path: object | None) -> str:
+    if path is None or not isinstance(path, Path):
         return "<p class='muted'>차트가 없습니다.</p>"
     return f'<img src="{path.resolve().as_posix()}" alt="{esc(path.name)}">'
+
+
+def yearly_gallery_html(paths: object | None) -> str:
+    if not isinstance(paths, list) or not paths:
+        return "<p class='muted'>연도별 차트가 없습니다.</p>"
+    chunks = []
+    for item in paths:
+        if not isinstance(item, Path):
+            continue
+        year = item.stem.rsplit("_", 1)[-1]
+        chunks.append(f"<article><h3>{esc(year)}</h3>{img_tag(item)}</article>")
+    return "".join(chunks) if chunks else "<p class='muted'>연도별 차트가 없습니다.</p>"
 
 
 def fmt_value(column: str, value: object) -> str:

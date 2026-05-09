@@ -50,7 +50,20 @@ def main() -> None:
 def build_panel(driver_path: Path, sentinel_path: Path) -> pd.DataFrame:
     df = pd.read_csv(driver_path, parse_dates=["Date"]).sort_values("Date").reset_index(drop=True)
     sent = pd.read_csv(sentinel_path, parse_dates=["Date"]).sort_values("Date")
-    keep = ["Date", "risk_off_score", "sentinel_state", "dominant_component"]
+    keep = [
+        "Date",
+        "risk_off_score",
+        "sentinel_state",
+        "dominant_component",
+        "RAI_z",
+        "RAI_level_0_100",
+        "RAI_20d_change",
+        "RAI_shock_score",
+        "RAI_overheat_score",
+        "ETF_risk_breadth_pct",
+        "ETF_breadth_shock_score",
+        "SAFE_ROTATION_shock_score",
+    ]
     df = df.merge(sent[[c for c in keep if c in sent]], on="Date", how="left")
 
     for col in df.columns:
@@ -76,7 +89,7 @@ def build_panel(driver_path: Path, sentinel_path: Path) -> pd.DataFrame:
     ).astype(int)
 
     feature_map: dict[str, pd.Series] = {}
-    for asset in ["NASDAQ100", "SOX", "SP500", "RUSSELL2000", "HYG_IEF", "DXY", "USDKRW", "US10Y", "US2Y", "VIX", "VXN", "MOVE", "HY_OAS", "COPPER_GOLD", "GOLD"]:
+    for asset in ["NASDAQ100", "SOX", "SP500", "RUSSELL2000", "HYG_IEF", "DXY", "USDKRW", "USDJPY", "US10Y", "US2Y", "VIX", "VXN", "MOVE", "HY_OAS", "COPPER_GOLD", "GOLD"]:
         if asset not in df:
             continue
         s = pd.to_numeric(df[asset], errors="coerce").ffill()
@@ -95,6 +108,11 @@ def build_panel(driver_path: Path, sentinel_path: Path) -> pd.DataFrame:
     feature_map["nasdaq_momentum_deceleration"] = feature_map["NASDAQ100_ret_20d"] - feature_map["NASDAQ100_ret_60d"]
     feature_map["low_vol_complacency"] = -rolling_z(pd.to_numeric(df["VIX"], errors="coerce").ffill(), 252) if "VIX" in df else 0.0
     feature_map["risk_off_score"] = pd.to_numeric(df.get("risk_off_score", 0.0), errors="coerce").fillna(0.0)
+    for col in ["RAI_z", "RAI_level_0_100", "RAI_20d_change", "RAI_shock_score", "RAI_overheat_score", "ETF_risk_breadth_pct", "ETF_breadth_shock_score", "SAFE_ROTATION_shock_score"]:
+        if col in df:
+            feature_map[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+    if "RAI_overheat_score" in feature_map and "RAI_shock_score" in feature_map:
+        feature_map["RAI_overheat_to_collapse"] = feature_map["RAI_overheat_score"].shift(20).fillna(0.0) + feature_map["RAI_shock_score"].fillna(0.0)
 
     engineered = pd.DataFrame(feature_map, index=df.index).replace([np.inf, -np.inf], np.nan)
     out = pd.concat([df, engineered], axis=1)
@@ -154,6 +172,15 @@ def feature_columns(frame: pd.DataFrame) -> list[str]:
             "low_vol_complacency",
             "rule_peak_fragility_score",
             "risk_off_score",
+            "RAI_z",
+            "RAI_level_0_100",
+            "RAI_20d_change",
+            "RAI_shock_score",
+            "RAI_overheat_score",
+            "RAI_overheat_to_collapse",
+            "ETF_risk_breadth_pct",
+            "ETF_breadth_shock_score",
+            "SAFE_ROTATION_shock_score",
         }
     ]
     blocked = {"nasdaq_fwd_5d", "nasdaq_fwd_20d", "nasdaq_fwd_min_20d", "target_peak_fragility_1m"}

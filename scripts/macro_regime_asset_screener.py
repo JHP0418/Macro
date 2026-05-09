@@ -23,10 +23,17 @@ OUT_DIR = ROOT / "outputs" / "macro_regime_asset_screener_latest"
 TABLE_DIR = OUT_DIR / "tables"
 REPORT_DIR = OUT_DIR / "reports"
 
-START_DATE = "2018-01-01"
+START_DATE = "1995-01-01"
 FORWARD_1W = 5
 FORWARD_4W = 20
 ROLLING_BETA_WINDOW = 60
+
+try:
+    from basket_taxonomy import classify_basket, enrich_asset_name, load_gaps_name_map
+except Exception:  # pragma: no cover
+    classify_basket = None
+    enrich_asset_name = None
+    load_gaps_name_map = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +64,9 @@ FRED_SERIES = [
     SeriesSpec("IG_OAS", "BAMLC0A0CM", "fred", "credit", False, "diff"),
     SeriesSpec("NFCI", "NFCI", "fred", "financial_conditions", False, "diff"),
     SeriesSpec("ANFCI", "ANFCI", "fred", "financial_conditions", False, "diff"),
+    SeriesSpec("USDKRW", "DEXKOUS", "fred", "fx", False, "diff"),
+    SeriesSpec("USDJPY", "DEXJPUS", "fred", "fx", True, "diff"),
+    SeriesSpec("WTI", "DCOILWTICO", "fred", "commodity", True, "return"),
 ]
 
 YF_SERIES = [
@@ -67,10 +77,10 @@ YF_SERIES = [
     SeriesSpec("VIX", "^VIX", "yahoo", "volatility", False, "diff"),
     SeriesSpec("VXN", "^VXN", "yahoo", "volatility", False, "diff"),
     SeriesSpec("MOVE", "^MOVE", "yahoo", "volatility", False, "diff"),
-    SeriesSpec("SP500", "SPY", "yahoo", "equity", True),
-    SeriesSpec("NASDAQ100", "QQQ", "yahoo", "equity", True),
-    SeriesSpec("SOX", "SOXX", "yahoo", "semiconductor", True),
-    SeriesSpec("RUSSELL2000", "IWM", "yahoo", "equity", True),
+    SeriesSpec("SP500", "^GSPC", "yahoo", "equity", True),
+    SeriesSpec("NASDAQ100", "^NDX", "yahoo", "equity", True),
+    SeriesSpec("SOX", "^SOX", "yahoo", "semiconductor", True),
+    SeriesSpec("RUSSELL2000", "^RUT", "yahoo", "equity", True),
     SeriesSpec("VALUE_GROWTH", "IWD/IWF", "ratio", "style", True),
     SeriesSpec("CYCLICAL_DEFENSIVE", "XLY/XLP", "ratio", "style", True),
     SeriesSpec("HYG_IEF", "HYG/IEF", "ratio", "credit_risk_appetite", True),
@@ -159,6 +169,7 @@ def load_asset_universe(path: Path = ASSET_UNIVERSE_PATH) -> list[AssetSpec]:
     if not path.exists():
         return ASSETS
     frame = pd.read_csv(path)
+    name_map = load_gaps_name_map() if load_gaps_name_map else {}
     assets: list[AssetSpec] = []
     seen: set[str] = set()
     for _, row in frame.iterrows():
@@ -172,13 +183,15 @@ def load_asset_universe(path: Path = ASSET_UNIVERSE_PATH) -> list[AssetSpec]:
                 if symbol in seen:
                     continue
                 seen.add(symbol)
-                assets.append(AssetSpec(symbol, token.strip(), group, dict(drivers)))
+                name = enrich_asset_name(symbol, token.strip(), name_map) if enrich_asset_name else token.strip()
+                assets.append(AssetSpec(symbol, name, group, dict(drivers)))
         elif pd.notna(row.get("symbol")):
             symbol = normalize_asset_symbol(str(row["symbol"]))
             if symbol in seen:
                 continue
             seen.add(symbol)
-            name = str(row.get("name", symbol)).strip() or symbol
+            fallback = str(row.get("name", symbol)).strip() or symbol
+            name = enrich_asset_name(symbol, fallback, name_map) if enrich_asset_name else fallback
             assets.append(AssetSpec(symbol, name, group, dict(drivers)))
     return assets or ASSETS
 
@@ -229,6 +242,7 @@ def main() -> None:
     safe_to_csv(driver_state, tables / "driver_state.csv")
     safe_to_csv(regime_frame.reset_index().rename(columns={"index": "Date"}), tables / "regime_history.csv")
     safe_to_csv(asset_scores, tables / "current_asset_scores.csv")
+    safe_to_csv(current_basket_scores(asset_scores), tables / "current_basket_scores.csv")
     pd.DataFrame(availability).to_csv(tables / "data_availability.csv", index=False, encoding="utf-8-sig")
     write_report(asset_scores, driver_state, regime_frame, availability, reports / "current_report.md")
     print(f"wrote {tables / 'current_asset_scores.csv'}")
@@ -259,7 +273,13 @@ def load_driver_series(specs: list[SeriesSpec], start: str, skip_download: bool)
             series = pd.Series(dtype=float)
         series = clean_series(series)
         if not series.empty:
-            raw[spec.name] = series
+            if spec.name in raw and not raw[spec.name].empty:
+                combined = raw[spec.name].combine_first(series).sort_index()
+                if combined.index.min() > series.index.min():
+                    combined = series.combine_first(raw[spec.name]).sort_index()
+                raw[spec.name] = clean_series(combined)
+            else:
+                raw[spec.name] = series
         availability.append(
             {
                 "name": spec.name,
@@ -279,12 +299,15 @@ def load_yahoo_prices(symbols: list[str], start: str, skip_download: bool) -> di
     if "CNH=X" in symbols and "CNY=X" not in symbols:
         symbols = [*symbols, "CNY=X"]
     missing = []
+    requested_start = pd.Timestamp(start)
     for symbol in symbols:
         cached = read_price_cache(symbol)
-        if cached.empty or cached.index.max() < pd.Timestamp.today().normalize() - pd.Timedelta(days=7):
+        cache_is_stale = cached.empty or cached.index.max() < pd.Timestamp.today().normalize() - pd.Timedelta(days=7)
+        cache_starts_too_late = (not cached.empty) and cached.index.min() > requested_start + pd.Timedelta(days=30)
+        if cache_is_stale or cache_starts_too_late:
             missing.append(symbol)
         else:
-            out[symbol] = cached["Close"]
+            out[symbol] = cached.loc[requested_start:, "Close"]
     if missing and not skip_download:
         import yfinance as yf
 
@@ -297,21 +320,34 @@ def load_yahoo_prices(symbols: list[str], start: str, skip_download: bool) -> di
                 for symbol in batch:
                     if symbol in data.columns.get_level_values(0):
                         frame = data[symbol].dropna(how="all")
+                        existing = read_price_cache(symbol)
+                        frame = merge_price_frames(existing, frame)
                         write_price_cache(symbol, frame)
                         if "Close" in frame:
-                            out[symbol] = clean_series(frame["Close"])
+                            out[symbol] = clean_series(frame.loc[requested_start:, "Close"])
             else:
                 symbol = batch[0]
                 frame = data.dropna(how="all")
+                existing = read_price_cache(symbol)
+                frame = merge_price_frames(existing, frame)
                 write_price_cache(symbol, frame)
                 if "Close" in frame:
-                    out[symbol] = clean_series(frame["Close"])
+                    out[symbol] = clean_series(frame.loc[requested_start:, "Close"])
     for symbol in symbols:
         if symbol not in out:
             cached = read_price_cache(symbol)
             if not cached.empty and "Close" in cached:
-                out[symbol] = clean_series(cached["Close"])
+                out[symbol] = clean_series(cached.loc[requested_start:, "Close"])
     return out
+
+
+def merge_price_frames(existing: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
+    if existing is None or existing.empty:
+        return new.sort_index()
+    if new is None or new.empty:
+        return existing.sort_index()
+    cols = sorted(set(existing.columns).union(new.columns))
+    return new.reindex(columns=cols).combine_first(existing.reindex(columns=cols)).sort_index()
 
 
 def load_asset_histories(symbols: list[str], start: str, skip_download: bool) -> dict[str, pd.DataFrame]:
@@ -582,6 +618,7 @@ def score_assets(
                 "symbol": asset.symbol,
                 "name": asset.name,
                 "group": asset.group,
+                "basket": classify_basket(asset.group, asset.name, asset.symbol) if classify_basket else asset.group,
                 "current_regime": current_regime,
                 "regime_confidence": round(regime_confidence, 3),
                 "score_0_100": round(final_score, 2),
@@ -608,7 +645,37 @@ def score_assets(
     if frame.empty:
         return frame
     frame["rank"] = frame["score_0_100"].rank(ascending=False, method="first").astype(int)
+    if "basket" in frame:
+        frame["basket_rank"] = frame.groupby("basket")["score_0_100"].rank(ascending=False, method="first").astype(int)
     return frame.sort_values(["score_0_100", "upside_prob_4w"], ascending=[False, False]).reset_index(drop=True)
+
+
+def current_basket_scores(asset_scores: pd.DataFrame) -> pd.DataFrame:
+    if asset_scores.empty or "basket" not in asset_scores:
+        return pd.DataFrame()
+    rows = []
+    for basket, group in asset_scores.groupby("basket"):
+        ranked = group.sort_values("score_0_100", ascending=False)
+        top = ranked.head(min(5, len(ranked)))
+        rows.append(
+            {
+                "asof": ranked["asof"].iloc[0],
+                "basket": basket,
+                "asset_count": int(len(ranked)),
+                "basket_score_0_100": float(0.55 * top["score_0_100"].mean() + 0.45 * ranked["score_0_100"].mean()),
+                "basket_upside_prob_1w": float(top["upside_prob_1w"].mean()),
+                "basket_upside_prob_4w": float(top["upside_prob_4w"].mean()),
+                "basket_return_20d": float(ranked["return_20d"].mean()),
+                "basket_risk_penalty": float(ranked["risk_penalty"].mean()),
+                "top_symbols": ", ".join(top["symbol"].astype(str).tolist()),
+                "top_names": " | ".join(top["name"].astype(str).tolist()),
+            }
+        )
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    out["basket_rank"] = out["basket_score_0_100"].rank(ascending=False, method="first").astype(int)
+    return out.sort_values("basket_rank").reset_index(drop=True)
 
 
 def technical_score(close: pd.Series) -> float:

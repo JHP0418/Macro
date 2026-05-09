@@ -26,8 +26,7 @@ from macro_regime_asset_screener import (  # noqa: E402
 )
 
 OUT_DIR = ROOT / "outputs" / "daily_risk_off_sentinel_latest"
-VALIDATION_OUT_DIR = ROOT / "outputs" / "rwkv_lppl_walkforward_validation_latest"
-RWKV_OUT_DIR = ROOT / "outputs" / "rwkv_lppl_asset_screener_latest"
+VALIDATION_OUT_DIR = ROOT / "outputs" / "macro_walkforward_validation_latest"
 MACRO_OUT_DIR = ROOT / "outputs" / "macro_regime_asset_screener_latest"
 
 
@@ -49,6 +48,7 @@ SHOCK_SPECS = [
     ShockSpec("HYG_IEF", "credit", -1, 0.80, "return"),
     ShockSpec("DXY", "fx", 1, 0.70, "return"),
     ShockSpec("USDKRW", "fx", 1, 1.10, "return"),
+    ShockSpec("USDJPY", "fx", -1, 0.75, "return"),
     ShockSpec("USDCNH", "fx", 1, 0.80, "return"),
     ShockSpec("SP500", "equity", -1, 0.75, "return"),
     ShockSpec("NASDAQ100", "equity", -1, 0.90, "return"),
@@ -75,25 +75,27 @@ RISK_GROUPS = {
     "US growth",
     "US semiconductor",
     "US cyclical",
+    "US cyclical/sector",
     "US REIT",
+    "US dividend/defensive",
+    "Global/Developed equity",
     "China/HK growth",
     "China equity",
     "India/EM",
     "Japan equity",
     "US high yield",
-    "Oil",
+    "Commodity/Oil",
 }
-DEFENSIVE_GROUPS = {"Korea defensive", "Korea bonds", "US long bonds", "US IG bonds", "Gold", "USD cash", "Cash/short bonds"}
-SAFE_GROUPS = {"USD cash", "Cash/short bonds"}
+DEFENSIVE_GROUPS = {"Korea defensive", "Korea bonds", "US long bonds", "US IG bonds", "Gold", "FX cash", "Cash/short bonds"}
+SAFE_GROUPS = {"FX cash", "Cash/short bonds"}
 HEDGE_GROUPS = {"Gold", "Korea bonds", "US long bonds", "US IG bonds"}
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Daily risk-off sentinel overlay for RWKV/LPPL macro asset scores.")
-    parser.add_argument("--start", default="2018-01-01")
+    parser = argparse.ArgumentParser(description="Daily risk-off sentinel overlay for macro asset scores.")
+    parser.add_argument("--start", default="1995-01-01")
     parser.add_argument("--skip-download", action="store_true")
     parser.add_argument("--input", type=Path, default=VALIDATION_OUT_DIR)
-    parser.add_argument("--rwkv-input", type=Path, default=RWKV_OUT_DIR)
     parser.add_argument("--output", type=Path, default=OUT_DIR)
     parser.add_argument("--benchmark", default="069500.KS", help="Primary crash-validation benchmark.")
     parser.add_argument("--forward-days", type=int, default=20)
@@ -118,10 +120,10 @@ def main() -> None:
     if driver_panel.empty:
         raise SystemExit("No driver data available.")
 
-    sentinel = build_sentinel(driver_panel, args.watch_threshold, args.derisk_threshold, args.cash_threshold)
-    current_scores = read_current_scores(args.input, args.rwkv_input)
-    overlay = overlay_current_scores(current_scores, sentinel)
     histories = load_asset_histories([asset.symbol for asset in ASSETS], args.start, args.skip_download)
+    sentinel = build_sentinel(driver_panel, args.watch_threshold, args.derisk_threshold, args.cash_threshold, histories)
+    current_scores = read_current_scores(args.input)
+    overlay = overlay_current_scores(current_scores, sentinel)
     benchmark_validation = validate_crash_warning(
         sentinel,
         histories,
@@ -178,7 +180,7 @@ def main() -> None:
     print(overlay.head(15).to_string(index=False))
 
 
-def build_sentinel(panel: pd.DataFrame, watch: float, derisk: float, cash: float) -> pd.DataFrame:
+def build_sentinel(panel: pd.DataFrame, watch: float, derisk: float, cash: float, histories: dict[str, pd.DataFrame] | None = None) -> pd.DataFrame:
     panel = panel.sort_index().ffill()
     rows: dict[str, pd.Series] = {}
     component_scores: dict[str, list[pd.Series]] = {}
@@ -198,6 +200,18 @@ def build_sentinel(panel: pd.DataFrame, watch: float, derisk: float, cash: float
     for component, scores in component_scores.items():
         out[f"{component}_score"] = pd.concat(scores, axis=1).mean(axis=1)
 
+    if histories:
+        rai = build_rai_metrics(histories, panel)
+        breadth = build_universe_breadth_metrics(histories)
+        out = out.join(rai, how="left").join(breadth, how="left")
+        if {"RAI_fear_score", "RAI_collapse_score"}.issubset(out.columns):
+            out["RAI_shock_score"] = out[["RAI_fear_score", "RAI_collapse_score"]].max(axis=1)
+            out["rai_score"] = (0.70 * out["RAI_shock_score"] + 0.30 * out.get("RAI_overheat_score", 0.0)).clip(0, 100)
+        if "ETF_breadth_shock_score" in out:
+            out["breadth_score"] = pd.to_numeric(out["ETF_breadth_shock_score"], errors="coerce").fillna(0.0).clip(0, 100)
+        if "SAFE_ROTATION_shock_score" in out:
+            out["safe_rotation_score"] = pd.to_numeric(out["SAFE_ROTATION_shock_score"], errors="coerce").fillna(0.0).clip(0, 100)
+
     component_weights = {
         "volatility_score": 1.25,
         "credit_score": 1.25,
@@ -207,6 +221,9 @@ def build_sentinel(panel: pd.DataFrame, watch: float, derisk: float, cash: float
         "supply_shock_score": 0.55,
         "hedge_bid_score": 0.35,
         "liquidity_score": 0.75,
+        "rai_score": 0.95,
+        "breadth_score": 1.10,
+        "safe_rotation_score": 0.65,
     }
     weighted = []
     weights = []
@@ -260,6 +277,123 @@ def shock_score(move: pd.Series, weight: float) -> pd.Series:
     return score.clip(0, 100)
 
 
+def rolling_z(series: pd.Series, window: int) -> pd.Series:
+    mean = series.rolling(window, min_periods=max(20, window // 3)).mean()
+    std = series.rolling(window, min_periods=max(20, window // 3)).std().replace(0, np.nan)
+    return (series - mean) / std
+
+
+def build_rai_metrics(histories: dict[str, pd.DataFrame], driver_panel: pd.DataFrame) -> pd.DataFrame:
+    prices = {}
+    price_groups = {}
+    for col in ["SP500", "NASDAQ100", "SOX", "RUSSELL2000", "CSI300", "HANGSENG_TECH", "GOLD", "WTI"]:
+        if col in driver_panel:
+            key = f"driver_{col}"
+            prices[key] = pd.to_numeric(driver_panel[col], errors="coerce")
+            price_groups[key] = "Global driver"
+    for asset in ASSETS:
+        hist = histories.get(asset.symbol)
+        if hist is None or hist.empty or "Close" not in hist:
+            continue
+        close = pd.to_numeric(hist["Close"], errors="coerce").dropna()
+        if close.shape[0] >= 300:
+            prices[asset.symbol] = close
+            price_groups[asset.symbol] = asset.group
+    if len(prices) < 20:
+        return pd.DataFrame(index=driver_panel.index)
+
+    px = pd.DataFrame(prices).sort_index().ffill()
+    groups = pd.Series(price_groups).reindex(px.columns).fillna("Other")
+    group_counts = groups.map(groups.value_counts()).replace(0, np.nan)
+    asset_weights = (1.0 / group_counts).astype(float)
+    asset_weights = asset_weights / asset_weights.sum() * len(asset_weights)
+    returns_6m = px.pct_change(126)
+    vol_12m = px.pct_change().rolling(252, min_periods=126).std() * math.sqrt(252)
+    mask = returns_6m.notna() & vol_12m.notna()
+    weighted_mask = mask.mul(asset_weights, axis=1)
+    count = mask.sum(axis=1)
+    weight_sum = weighted_mask.sum(axis=1).replace(0, np.nan)
+    x = vol_12m.where(mask)
+    y = returns_6m.where(mask)
+    x_mean = x.mul(asset_weights, axis=1).sum(axis=1) / weight_sum
+    y_mean = y.mul(asset_weights, axis=1).sum(axis=1) / weight_sum
+    xd = x.sub(x_mean, axis=0).where(mask)
+    yd = y.sub(y_mean, axis=0).where(mask)
+    slope = (xd * yd).mul(asset_weights, axis=1).sum(axis=1) / ((xd * xd).mul(asset_weights, axis=1).sum(axis=1)).replace(0, np.nan)
+
+    # Credit Suisse-style RAI uses the cross-sectional regression beta itself:
+    # X = 12m volatility, Y = 6m return. Positive beta means riskier assets are
+    # being rewarded; negative/collapsing beta means risk appetite is deteriorating.
+    rai_raw = slope.where(count.ge(20))
+    rai_z = rolling_z(rai_raw, 756)
+    rai_level = (50.0 + 15.0 * rai_z).clip(0, 100)
+    rai_change_20d = rai_z.diff(20)
+    fear = ((-rai_z - 0.50).clip(lower=0) * 28.0).clip(0, 100)
+    collapse = ((-rai_change_20d - 0.75).clip(lower=0) * 24.0).clip(0, 100)
+    overheat = ((rai_z - 1.00).clip(lower=0) * 25.0).clip(0, 100)
+    return pd.DataFrame(
+        {
+            "RAI_raw": rai_raw,
+            "RAI_z": rai_z,
+            "RAI_level_0_100": rai_level,
+            "RAI_20d_change": rai_change_20d,
+            "RAI_cross_asset_count": count,
+            "RAI_fear_score": fear,
+            "RAI_collapse_score": collapse,
+            "RAI_overheat_score": overheat,
+        },
+        index=px.index,
+    ).reindex(driver_panel.index).ffill()
+
+
+def build_universe_breadth_metrics(histories: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    risk_symbols = [asset.symbol for asset in ASSETS if asset.group in RISK_GROUPS]
+    safe_symbols = [asset.symbol for asset in ASSETS if asset.group in SAFE_GROUPS or asset.group in HEDGE_GROUPS]
+    prices = {}
+    for asset in ASSETS:
+        hist = histories.get(asset.symbol)
+        if hist is None or hist.empty or "Close" not in hist:
+            continue
+        close = pd.to_numeric(hist["Close"], errors="coerce").dropna()
+        if close.shape[0] >= 120:
+            prices[asset.symbol] = close
+    if len(prices) < 10:
+        return pd.DataFrame()
+    px = pd.DataFrame(prices).sort_index().ffill()
+    ret20 = px.pct_change(20)
+    below60 = px.lt(px.rolling(60, min_periods=20).mean())
+    below20 = px.lt(px.rolling(20, min_periods=10).mean())
+    risk_cols = [c for c in risk_symbols if c in px]
+    safe_cols = [c for c in safe_symbols if c in px]
+    risk_breadth = 1.0 - below60[risk_cols].mean(axis=1) if risk_cols else 1.0 - below60.mean(axis=1)
+    all_below60 = below60.mean(axis=1) * 100.0
+    all_below20 = below20.mean(axis=1) * 100.0
+    loss20 = ret20.lt(0).mean(axis=1) * 100.0
+    large_loss20 = ret20.lt(-0.05).mean(axis=1) * 100.0
+    breadth_damage = (0.35 * all_below60 + 0.25 * all_below20 + 0.25 * loss20 + 0.15 * large_loss20).clip(0, 100)
+    breadth_accel = ((risk_breadth.shift(10) - risk_breadth).clip(lower=0) * 160.0).clip(0, 100)
+    breadth_shock = (0.70 * breadth_damage + 0.30 * breadth_accel).clip(0, 100)
+
+    risk_ret = ret20[risk_cols].mean(axis=1) if risk_cols else ret20.mean(axis=1)
+    safe_ret = ret20[safe_cols].mean(axis=1) if safe_cols else pd.Series(0.0, index=px.index)
+    rotation = safe_ret - risk_ret
+    rotation_z = rolling_z(rotation, 252)
+    safe_rotation = (rotation_z.clip(lower=0) * 30.0).clip(0, 100)
+    return pd.DataFrame(
+        {
+            "ETF_risk_breadth_pct": (risk_breadth * 100.0).clip(0, 100),
+            "ETF_below_60ma_pct": all_below60.clip(0, 100),
+            "ETF_below_20ma_pct": all_below20.clip(0, 100),
+            "ETF_20d_loss_pct": loss20.clip(0, 100),
+            "ETF_20d_large_loss_pct": large_loss20.clip(0, 100),
+            "ETF_breadth_shock_score": breadth_shock,
+            "SAFE_ROTATION_20d_spread": rotation,
+            "SAFE_ROTATION_shock_score": safe_rotation,
+        },
+        index=px.index,
+    )
+
+
 def dominant_component(frame: pd.DataFrame) -> pd.Series:
     cols = [c for c in frame.columns if c.endswith("_score") and c not in {"risk_off_score", "risk_off_score_raw"}]
     if not cols:
@@ -289,21 +423,17 @@ def state_machine(score: pd.Series, watch: float, derisk: float, cash: float) ->
     return pd.Series(states, index=score.index)
 
 
-def read_current_scores(validation_dir: Path, rwkv_dir: Path) -> pd.DataFrame:
+def read_current_scores(validation_dir: Path) -> pd.DataFrame:
     candidates = [
-        validation_dir / "tables" / "calibrated_current_asset_scores.csv",
-        rwkv_dir / "tables" / "current_asset_scores_rwkv_lppl.csv",
         MACRO_OUT_DIR / "tables" / "current_asset_scores.csv",
+        validation_dir / "tables" / "calibrated_current_asset_scores.csv",
     ]
-    frames = []
     for path in candidates:
         if path.exists():
             frame = pd.read_csv(path)
             frame.attrs["source_path"] = str(path)
-            frames.append(frame)
-    if frames:
-        return max(frames, key=lambda frame: frame["symbol"].nunique() if "symbol" in frame else frame.shape[0])
-    raise SystemExit("Missing current asset score table. Run RWKV/LPPL and walk-forward calibration first.")
+            return frame
+    raise SystemExit("Missing current asset score table. Run the macro screener first.")
 
 
 def overlay_current_scores(scores: pd.DataFrame, sentinel: pd.DataFrame) -> pd.DataFrame:
@@ -346,7 +476,7 @@ def group_adjustment(group: str, latest: pd.Series) -> float:
         penalty = float(latest["equity_penalty"])
         if group in {"US high yield", "Korea growth", "Korea semiconductor", "Korea IT", "US growth", "US semiconductor", "China/HK growth", "India/EM"}:
             penalty *= 1.15
-        if group == "Oil" and str(latest["dominant_component"]) == "supply_shock":
+        if group == "Commodity/Oil" and str(latest["dominant_component"]) == "supply_shock":
             penalty *= 0.45
         return -min(45.0, penalty + max(0.0, risk_score - 70.0) * 0.20)
     if group in DEFENSIVE_GROUPS:
@@ -676,7 +806,7 @@ def write_report(
     lines.extend(
         [
             "## 해석",
-            "- 이 레이어는 뉴스 자체를 예측하지 않고, 매일 관측되는 변동성·신용·환율·주식 breadth·원자재 충격을 조합해 월간 RWKV/LPPL 점수를 즉시 보정한다.",
+            "- 이 레이어는 뉴스 자체를 예측하지 않고, 매일 관측되는 변동성·신용·환율·엔화·RAI·주식 breadth·원자재 충격을 조합해 현재 스크리닝 점수를 즉시 보정한다.",
             "- Watch는 위험자산 사이즈 축소, De-risk는 위험자산 대폭 축소, Cash는 현금·단기채 중심 전환 신호다.",
             "- 완전한 선제형에 가깝게 쓰려면 이 Sentinel을 매일 먼저 실행하고, 월간 모델 신호보다 우선순위가 높게 적용해야 한다.",
         ]

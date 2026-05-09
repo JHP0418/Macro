@@ -48,7 +48,7 @@ def main() -> None:
 def build_risk_vector(sentinel_path: Path, driver_path: Path, peak_path: Path, analog_path: Path | None = None, correction_path: Path | None = None) -> pd.DataFrame:
     sent = pd.read_csv(sentinel_path, parse_dates=["Date"]).sort_values("Date").reset_index(drop=True)
     driver = pd.read_csv(driver_path, parse_dates=["Date"]).sort_values("Date")
-    keep = ["Date", "NASDAQ100", "SOX", "SP500", "RUSSELL2000", "DXY", "USDKRW", "US10Y", "GOLD", "WTI"]
+    keep = ["Date", "NASDAQ100", "SOX", "SP500", "RUSSELL2000", "DXY", "USDKRW", "USDJPY", "USDCNH", "US10Y", "GOLD", "WTI"]
     df = sent.merge(driver[[c for c in keep if c in driver]], on="Date", how="left")
     if peak_path.exists():
         peak = pd.read_csv(peak_path, parse_dates=["Date"])
@@ -130,6 +130,7 @@ def build_risk_vector(sentinel_path: Path, driver_path: Path, peak_path: Path, a
         {
             "DXY_shock_score": 0.25,
             "USDKRW_shock_score": 0.30,
+            "USDJPY_shock_score": 0.14,
             "USDCNH_shock_score": 0.20,
             "fx_score": 0.15,
             "COPPER_GOLD_shock_score": 0.10,
@@ -147,6 +148,26 @@ def build_risk_vector(sentinel_path: Path, driver_path: Path, peak_path: Path, a
     )
     out["inflation_supply_stress"] = weighted_mean(out, {"WTI_shock_score": 0.65, "supply_shock_score": 0.35})
     out["hedge_demand"] = weighted_mean(out, {"GOLD_shock_score": 0.55, "hedge_bid_score": 0.45})
+    out["rai_appetite_stress"] = weighted_mean(
+        out,
+        {
+            "RAI_shock_score": 0.38,
+            "RAI_fear_score": 0.22,
+            "RAI_collapse_score": 0.25,
+            "RAI_overheat_score": 0.15,
+        },
+    )
+    out["universe_breadth_stress"] = weighted_mean(
+        out,
+        {
+            "ETF_breadth_shock_score": 0.48,
+            "ETF_below_60ma_pct": 0.20,
+            "ETF_below_20ma_pct": 0.14,
+            "ETF_20d_loss_pct": 0.14,
+            "ETF_20d_large_loss_pct": 0.04,
+        },
+    )
+    out["safe_rotation_stress"] = weighted_mean(out, {"SAFE_ROTATION_shock_score": 0.70, "hedge_demand": 0.30})
     out["peak_fragility"] = pd.to_numeric(out.get("peak_fragility_score_0_100", 0.0), errors="coerce").fillna(0.0).clip(0, 100)
     out["analog_macro_risk"] = pd.to_numeric(out.get("analog_risk_score_0_100", 0.0), errors="coerce").fillna(0.0).clip(0, 100)
     out["correction_pressure"] = pd.to_numeric(out.get("correction_pressure_score_0_100", 0.0), errors="coerce").fillna(0.0).clip(0, 100)
@@ -156,11 +177,14 @@ def build_risk_vector(sentinel_path: Path, driver_path: Path, peak_path: Path, a
         + 0.28 * out["fx_external_stress"]
         + 0.20 * out["volatility_stress"]
         + 0.10 * out["inflation_supply_stress"]
+        + 0.10 * out["rai_appetite_stress"]
     ).clip(0, 100)
     out["market_breakdown_axis_y"] = (
-        0.45 * out["equity_breakdown_stress"]
-        + 0.25 * out["volatility_stress"]
+        0.36 * out["equity_breakdown_stress"]
+        + 0.20 * out["volatility_stress"]
         + 0.15 * out["cyclical_china_stress"]
+        + 0.14 * out["universe_breadth_stress"]
+        + 0.08 * out["rai_appetite_stress"]
         + 0.10 * out["peak_fragility"]
         + 0.07 * out["analog_macro_risk"]
         + 0.08 * out["correction_pressure"]
@@ -169,7 +193,8 @@ def build_risk_vector(sentinel_path: Path, driver_path: Path, peak_path: Path, a
         0.36 * out["fx_external_stress"]
         + 0.26 * out["cyclical_china_stress"]
         + 0.22 * out["inflation_supply_stress"]
-        + 0.16 * out["hedge_demand"]
+        + 0.10 * out["hedge_demand"]
+        + 0.10 * out["safe_rotation_stress"]
     ).clip(0, 100)
     out["composite_vector_risk"] = (
         0.25 * out["macro_liquidity_axis_x"]
@@ -179,6 +204,8 @@ def build_risk_vector(sentinel_path: Path, driver_path: Path, peak_path: Path, a
         + 0.10 * out["peak_fragility"]
         + 0.08 * out["analog_macro_risk"]
         + 0.06 * out["correction_pressure"]
+        + 0.07 * out["rai_appetite_stress"]
+        + 0.08 * out["universe_breadth_stress"]
     ).clip(0, 100)
 
     axis_cols = [
@@ -189,6 +216,9 @@ def build_risk_vector(sentinel_path: Path, driver_path: Path, peak_path: Path, a
         "cyclical_china_stress",
         "inflation_supply_stress",
         "hedge_demand",
+        "rai_appetite_stress",
+        "universe_breadth_stress",
+        "safe_rotation_stress",
         "peak_fragility",
         "analog_macro_risk",
         "correction_pressure",
@@ -222,9 +252,17 @@ def classify_archetype(row: pd.Series) -> str:
     supply = row["inflation_supply_stress"]
     cyc = row["cyclical_china_stress"]
     correction = row.get("correction_pressure", 0.0)
+    rai = row.get("rai_appetite_stress", 0.0)
+    breadth = row.get("universe_breadth_stress", 0.0)
 
     if x >= 55 and y >= 55:
         return "Full Risk-Off"
+    if rai >= 58 and breadth >= 45:
+        return "RAI/Breadth Risk-Off"
+    if breadth >= 65 and y >= 35:
+        return "Universe Breadth Breakdown"
+    if rai >= 60 and y < 45:
+        return "Risk Appetite Collapse"
     if correction >= 60 and peak >= 45 and x < 45:
         return "Correction Pressure"
     if peak >= 60 and y < 45 and x < 45:
@@ -273,6 +311,8 @@ def yearly_summary(frame: pd.DataFrame) -> pd.DataFrame:
                 "max_equity_breakdown": float(y["equity_breakdown_stress"].max()),
                 "max_fx_external": float(y["fx_external_stress"].max()),
                 "max_peak_fragility": float(y["peak_fragility"].max()),
+                "max_rai_appetite_stress": float(y.get("rai_appetite_stress", pd.Series(0.0, index=y.index)).max()),
+                "max_universe_breadth_stress": float(y.get("universe_breadth_stress", pd.Series(0.0, index=y.index)).max()),
                 "warning_or_worse_days": int(y["risk_phase"].isin(["Warning", "Risk-Off", "Crisis"]).sum()),
                 "top_archetype": y["risk_archetype"].value_counts().idxmax(),
             }
@@ -320,14 +360,16 @@ def create_charts(frame: pd.DataFrame, charts_dir: Path) -> list[Path]:
             y["liquidity_credit_stress"],
             y["equity_breakdown_stress"],
             y["fx_external_stress"],
+            y.get("rai_appetite_stress", pd.Series(0.0, index=y.index)),
+            y.get("universe_breadth_stress", pd.Series(0.0, index=y.index)),
             y["peak_fragility"],
-            labels=["Liquidity/Credit", "Equity Breakdown", "FX/External", "Peak Fragility"],
-            colors=["#c00000", "#7030a0", "#ed7d31", "#4472c4"],
+            labels=["Liquidity/Credit", "Equity Breakdown", "FX/External", "RAI", "ETF Breadth", "Peak Fragility"],
+            colors=["#c00000", "#7030a0", "#ed7d31", "#00a6a6", "#7f7f7f", "#4472c4"],
             alpha=0.72,
         )
         ax.set_ylabel("Risk Components")
         ax.grid(True, axis="y", color="#e6e6e6", lw=0.8)
-        ax.legend(loc="upper left", ncol=4, fontsize=8)
+        ax.legend(loc="upper left", ncol=3, fontsize=8)
         ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
 

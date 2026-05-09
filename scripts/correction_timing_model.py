@@ -74,7 +74,7 @@ def build_panel(path: Path) -> pd.DataFrame:
 
 def add_features(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    for asset in ["NASDAQ100", "SOX", "SP500", "RUSSELL2000", "HYG_IEF", "DXY", "USDKRW", "US10Y", "US2Y", "VIX", "VXN", "MOVE", "HY_OAS", "COPPER_GOLD", "GOLD", "WTI"]:
+    for asset in ["NASDAQ100", "SOX", "SP500", "RUSSELL2000", "HYG_IEF", "DXY", "USDKRW", "USDJPY", "US10Y", "US2Y", "VIX", "VXN", "MOVE", "HY_OAS", "COPPER_GOLD", "GOLD", "WTI", "RAI_z", "ETF_risk_breadth_pct"]:
         if asset not in out:
             continue
         s = pd.to_numeric(out[asset], errors="coerce").replace(0, np.nan).ffill()
@@ -102,6 +102,11 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         + 0.20 * out.get("fx_external_stress", 0.0)
         + 0.20 * out.get("liquidity_credit_stress", 0.0)
     )
+    out["rai_breadth_collapse_pressure"] = (
+        0.40 * out.get("rai_appetite_stress", 0.0)
+        + 0.35 * out.get("universe_breadth_stress", 0.0)
+        + 0.25 * out.get("safe_rotation_stress", 0.0)
+    )
     return out.replace([np.inf, -np.inf], np.nan)
 
 
@@ -120,6 +125,7 @@ def feature_cols(frame: pd.DataFrame) -> list[str]:
         "HYG_IEF_",
         "DXY_",
         "USDKRW_",
+        "USDJPY_",
         "US10Y_",
         "US2Y_",
         "VIX_",
@@ -129,6 +135,8 @@ def feature_cols(frame: pd.DataFrame) -> list[str]:
         "COPPER_GOLD_",
         "GOLD_",
         "WTI_",
+        "RAI_",
+        "ETF_",
         "analog_k",
     )
     explicit = {
@@ -142,6 +150,9 @@ def feature_cols(frame: pd.DataFrame) -> list[str]:
         "cyclical_china_stress",
         "inflation_supply_stress",
         "hedge_demand",
+        "rai_appetite_stress",
+        "universe_breadth_stress",
+        "safe_rotation_stress",
         "macro_liquidity_axis_x",
         "market_breakdown_axis_y",
         "external_supply_axis_z",
@@ -156,6 +167,7 @@ def feature_cols(frame: pd.DataFrame) -> list[str]:
         "analog_peak_combo",
         "breakdown_acceleration",
         "late_cycle_pressure",
+        "rai_breadth_collapse_pressure",
     }
     blocked = ("_fwd_", "target_", "label_")
     cols = []
