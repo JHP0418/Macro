@@ -302,7 +302,10 @@ def load_yahoo_prices(symbols: list[str], start: str, skip_download: bool) -> di
     requested_start = pd.Timestamp(start)
     for symbol in symbols:
         cached = read_price_cache(symbol)
-        cache_is_stale = cached.empty or cached.index.max() < pd.Timestamp.today().normalize() - pd.Timedelta(days=7)
+        # Screening should use the latest available market close.  A weekly
+        # freshness window is too loose because it can leave same-day Korean
+        # ETF/FX/futures data out of the current dashboard.
+        cache_is_stale = cached.empty or cached.index.max() < pd.Timestamp.today().normalize()
         cache_starts_too_late = (not cached.empty) and cached.index.min() > requested_start + pd.Timedelta(days=30)
         if cache_is_stale or cache_starts_too_late:
             missing.append(symbol)

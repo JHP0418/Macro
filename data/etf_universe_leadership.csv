@@ -1,0 +1,141 @@
+﻿etf_ticker,market,benchmark_ticker,name,group
+144600.KS,US,QQQ,KODEX 은선물(H),Gold
+132030.KS,US,QQQ,KODEX 골드선물(H),Gold
+271060.KS,US,QQQ,KODEX 3대농산물선물(H),Commodity/Oil
+360750.KS,US,QQQ,TIGER 미국S&P500,US broad equity
+379800.KS,US,QQQ,KODEX 미국S&P500,US broad equity
+360200.KS,US,QQQ,ACE 미국S&P500,US broad equity
+379780.KS,US,QQQ,RISE 미국S&P500,US broad equity
+449180.KS,US,QQQ,KODEX 미국S&P500(H),US broad equity
+448290.KS,US,QQQ,TIGER 미국S&P500TR(H),US broad equity
+219480.KS,US,QQQ,KODEX 미국S&P500선물(H),US broad equity
+143850.KS,US,QQQ,TIGER 미국S&P500선물(H),US broad equity
+488500.KS,US,QQQ,TIGER 미국S&P500동일가중,US broad equity
+245340.KS,US,QQQ,TIGER 미국다우존스30,US broad equity
+280930.KS,US,QQQ,KODEX 미국러셀2000(H),US broad equity
+133690.KS,US,QQQ,TIGER 미국나스닥100,US growth
+379810.KS,US,QQQ,KODEX 미국나스닥100,US growth
+367380.KS,US,QQQ,ACE 미국나스닥100,US growth
+448300.KS,US,QQQ,TIGER 미국나스닥100TR(H),US growth
+304940.KS,US,QQQ,KODEX 미국나스닥100선물(H),US growth
+381170.KS,US,QQQ,TIGER 미국테크TOP10 INDXX,US growth
+287180.KS,US,QQQ,PLUS 미국나스닥테크,US growth
+494410.KS,US,QQQ,PLUS 미국S&P500성장주,US growth
+463680.KS,US,QQQ,KODEX 미국S&P500테크놀로지,US growth
+487230.KS,US,QQQ,KODEX 미국AI전력핵심인프라,US growth
+456600.KS,US,QQQ,TIME 글로벌AI인공지능액티브,US growth
+465580.KS,US,QQQ,ACE 미국빅테크TOP7 Plus,US growth
+457480.KS,US,QQQ,ACE 테슬라밸류체인액티브,US growth
+381180.KS,US,QQQ,TIGER 미국필라델피아반도체나스닥,US semiconductor
+446770.KS,US,QQQ,ACE 글로벌반도체TOP4 Plus,US semiconductor
+390390.KS,US,QQQ,KODEX 미국반도체,US semiconductor
+497570.KS,US,QQQ,TIGER 미국필라델피아AI반도체나스닥,US semiconductor
+251350.KS,US,QQQ,KODEX 선진국MSCI World,Global/Developed equity
+379790.KS,US,QQQ,RISE 유로스탁스50(H),Global/Developed equity
+411860.KS,US,QQQ,KIWOOM 독일DAX,Global/Developed equity
+371160.KS,US,QQQ,TIGER 차이나항셍테크,China/HK growth
+372330.KS,US,QQQ,KODEX 차이나항셍테크,China/HK growth
+371460.KS,US,QQQ,TIGER 차이나전기차SOLACTIVE,China/HK growth
+099140.KS,US,QQQ,KODEX 차이나H,China/HK growth
+245360.KS,US,QQQ,TIGER 차이나HSCEI,China/HK growth
+250730.KS,US,QQQ,RISE 차이나HSCEI(H),China/HK growth
+310080.KS,US,QQQ,RISE 중국MSCI China(H),China/HK growth
+283580.KS,US,QQQ,KODEX 차이나CSI300,China equity
+192090.KS,US,QQQ,TIGER 차이나CSI300,China equity
+168580.KS,US,QQQ,ACE 중국본토CSI300,China equity
+453810.KS,US,QQQ,KODEX 인도Nifty50,India/EM
+453870.KS,US,QQQ,TIGER 인도니프티50,India/EM
+245710.KS,US,QQQ,ACE 베트남VN30(합성),India/EM
+256440.KS,US,QQQ,ACE 인도네시아MSCI(합성),India/EM
+291130.KS,US,QQQ,ACE 멕시코MSCI(합성),India/EM
+105010.KS,US,QQQ,TIGER 라틴35,India/EM
+261920.KS,US,QQQ,ACE 필리핀MSCI(합성),India/EM
+241180.KS,US,QQQ,TIGER 일본니케이225,Japan equity
+238720.KS,US,QQQ,ACE 일본Nikkei225(H),Japan equity
+101280.KS,US,QQQ,KODEX 일본TOPIX100,Japan equity
+499150.KS,US,QQQ,SOL 미국S&P500엔화노출(H),Japan equity
+458730.KS,US,QQQ,TIGER 미국배당다우존스,US dividend/defensive
+446720.KS,US,QQQ,SOL 미국배당다우존스,US dividend/defensive
+402970.KS,US,QQQ,ACE 미국배당다우존스,US dividend/defensive
+452360.KS,US,QQQ,SOL 미국배당다우존스(H),US dividend/defensive
+429000.KS,US,QQQ,TIGER 미국S&P500배당귀족,US dividend/defensive
+493420.KS,US,QQQ,SOL 미국배당다우존스TR,US dividend/defensive
+460660.KS,US,QQQ,RISE 미국S&P배당킹,US dividend/defensive
+245350.KS,US,QQQ,TIGER 유로스탁스배당30,US dividend/defensive
+453640.KS,US,QQQ,KODEX 미국S&P500헬스케어,US dividend/defensive
+453630.KS,US,QQQ,KODEX 미국S&P500필수소비재,US dividend/defensive
+463640.KS,US,QQQ,KODEX 미국S&P500유틸리티,US dividend/defensive
+453650.KS,US,QQQ,KODEX 미국S&P500금융,US cyclical/sector
+218420.KS,US,QQQ,KODEX 미국S&P500에너지(합성),US cyclical/sector
+453660.KS,US,QQQ,KODEX 미국S&P500경기소비재,US cyclical/sector
+463690.KS,US,QQQ,KODEX 미국S&P500커뮤니케이션,US cyclical/sector
+185680.KS,US,QQQ,KODEX 미국S&P바이오(합성),US cyclical/sector
+182480.KS,US,QQQ,TIGER 미국MSCI리츠(합성 H),US REIT
+352560.KS,US,QQQ,KODEX 미국부동산리츠(H),US REIT
+069500.KS,KR,069500.KS,KODEX 200,Korea broad equity
+102110.KS,KR,069500.KS,TIGER 200,Korea broad equity
+278530.KS,KR,069500.KS,KODEX 200TR,Korea broad equity
+310970.KS,KR,069500.KS,TIGER MSCI Korea TR,Korea broad equity
+148020.KS,KR,069500.KS,RISE 200,Korea broad equity
+278540.KS,KR,069500.KS,KODEX MSCI Korea TR,Korea broad equity
+294400.KS,KR,069500.KS,KIWOOM 200TR,Korea broad equity
+152100.KS,KR,069500.KS,PLUS 200,Korea broad equity
+226490.KS,KR,069500.KS,KODEX 코스피,Korea broad equity
+361580.KS,KR,069500.KS,RISE 200TR,Korea broad equity
+277630.KS,KR,069500.KS,TIGER 코스피,Korea broad equity
+295040.KS,KR,069500.KS,SOL 200TR,Korea broad equity
+302450.KS,KR,069500.KS,RISE 코스피,Korea broad equity
+328370.KS,KR,069500.KS,PLUS 코스피TR,Korea broad equity
+156080.KS,KR,069500.KS,KODEX MSCI Korea,Korea broad equity
+229200.KS,KR,069500.KS,KODEX 코스닥150,Korea growth
+232080.KS,KR,069500.KS,TIGER 코스닥150,Korea growth
+305720.KS,KR,069500.KS,KODEX 2차전지산업,Korea growth
+305540.KS,KR,069500.KS,TIGER 2차전지테마,Korea growth
+462010.KS,KR,069500.KS,TIGER 2차전지소재Fn,Korea growth
+325010.KS,KR,069500.KS,KODEX 성장주,Korea growth
+147970.KS,KR,069500.KS,TIGER 모멘텀,Korea growth
+091160.KS,KR,069500.KS,KODEX 반도체,Korea semiconductor
+395160.KS,KR,069500.KS,KODEX AI반도체,Korea semiconductor
+395270.KS,KR,069500.KS,HANARO Fn K-반도체,Korea semiconductor
+455850.KS,KR,069500.KS,SOL AI반도체소부장,Korea semiconductor
+102780.KS,KR,069500.KS,KODEX 삼성그룹,Korea IT
+315930.KS,KR,069500.KS,KODEX Top5PlusTR,Korea IT
+139260.KS,KR,069500.KS,TIGER 200 IT,Korea IT
+363580.KS,KR,069500.KS,KODEX 200IT TR,Korea IT
+445290.KS,KR,069500.KS,KODEX 로봇액티브,Korea IT
+487240.KS,KR,069500.KS,KODEX AI전력핵심설비,Korea IT
+466920.KS,KR,069500.KS,SOL 조선TOP3플러스,Korea cyclical
+449450.KS,KR,069500.KS,PLUS K방산,Korea cyclical
+494670.KS,KR,069500.KS,TIGER 조선TOP10,Korea cyclical
+463250.KS,KR,069500.KS,TIGER K방산&우주,Korea cyclical
+434730.KS,KR,069500.KS,HANARO 원자력iSelect,Korea cyclical
+091180.KS,KR,069500.KS,KODEX 자동차,Korea cyclical
+139230.KS,KR,069500.KS,TIGER 200 중공업,Korea cyclical
+139220.KS,KR,069500.KS,TIGER 200 건설,Korea cyclical
+139250.KS,KR,069500.KS,TIGER 200 에너지화학,Korea cyclical
+227550.KS,KR,069500.KS,TIGER 200 산업재,Korea cyclical
+139290.KS,KR,069500.KS,TIGER 200 경기소비재,Korea cyclical
+139240.KS,KR,069500.KS,TIGER 200 철강소재,Korea cyclical
+315270.KS,KR,069500.KS,TIGER 200커뮤니케이션서비스,Korea cyclical
+161510.KS,KR,069500.KS,PLUS 고배당주,Korea value
+466940.KS,KR,069500.KS,TIGER 은행고배당플러스TOP10,Korea value
+091170.KS,KR,069500.KS,KODEX 은행,Korea value
+139270.KS,KR,069500.KS,TIGER 200 금융,Korea value
+227570.KS,KR,069500.KS,TIGER 우량가치,Korea value
+227540.KS,KR,069500.KS,TIGER 200 헬스케어,Korea defensive
+174350.KS,KR,069500.KS,TIGER 로우볼,Korea defensive
+227560.KS,KR,069500.KS,TIGER 200 생활소비재,Korea defensive
+459580.KS,US,QQQ,KODEX CD금리액티브(합성),Cash/short bonds
+488770.KS,US,QQQ,KODEX 머니마켓액티브,Cash/short bonds
+423160.KS,US,QQQ,KODEX KOFR금리액티브(합성),Cash/short bonds
+469830.KS,US,QQQ,SOL 초단기채권액티브,Cash/short bonds
+455660.KS,US,QQQ,ACE 미국하이일드액티브(H),US high yield
+182490.KS,US,QQQ,TIGER 단기선진하이일드(합성 H),US high yield
+468630.KS,US,QQQ,KODEX iShares미국투자등급회사채액티브,US IG bonds
+453850.KS,US,QQQ,ACE 미국30년국채액티브(H),US long bonds
+484790.KS,US,QQQ,KODEX 미국30년국채액티브(H),US long bonds
+476760.KS,US,QQQ,ACE 미국30년국채액티브,US long bonds
+267440.KS,US,QQQ,RISE 미국장기국채선물(H),US long bonds
+476750.KS,US,QQQ,ACE 미국30년국채엔화노출액티브(H),US long bonds
+468370.KS,US,QQQ,KODEX iShares미국인플레이션국채액티브,US long bonds
+385540.KS,KR,069500.KS,RISE 종합채권(A-이상)액티브,Korea bonds

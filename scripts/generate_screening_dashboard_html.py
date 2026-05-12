@@ -174,6 +174,74 @@ KOREAN_LABELS.update(
         "model_regime": "모델 Regime",
         "safe_score": "안전자산 점수",
         "model_version": "모델 버전",
+        "leadership_rank": "리더십 순위",
+        "etf_ticker": "ETF 코드",
+        "leadership_score_0_100": "리더십 점수",
+        "Final_Rule_Score": "룰 점수",
+        "Final_Rule_Score_0_100": "룰 점수",
+        "holding_logic": "구성종목 처리",
+        "ETF_RS_20D": "20일 상대강도",
+        "ETF_RS_60D": "60일 상대강도",
+        "ETF_RS_120D": "120일 상대강도",
+        "RS_positive_share": "구성종목 RS 양수비중",
+        "MA60_breadth": "60일선 위 비중",
+        "effective_N": "유효 구성종목 수",
+        "top5_weight_share": "상위5 비중",
+        "weight_source_note": "비중 출처",
+        "strategy_mode": "전략 모드",
+        "score_label": "점수 방식",
+        "top_k": "선택 ETF 수",
+        "threshold_col": "진입 필터",
+        "threshold": "진입 기준",
+        "risk_block_limit": "허용 위험신호 수",
+        "invested_periods": "진입 횟수",
+        "coverage": "진입 비율",
+        "Sharpe": "샤프",
+        "trade_hit_ratio_excess_gt0": "초과수익 적중률",
+        "trade_positive_return_ratio": "상승 적중률",
+        "CAGR": "연환산 수익률",
+        "MDD": "최대낙폭",
+        "optimized_action": "현재 액션",
+        "risk_off_v4_prob": "Risk-Off V4 확률",
+        "risk_off_v4_watch_threshold": "Watch 기준",
+        "risk_off_v4_derisk_threshold": "De-risk 기준",
+        "risk_off_v4_cash_threshold": "Cash 기준",
+        "risk_off_v4_stage": "V4 단계",
+        "risk_off_v4_watch": "Watch 신호",
+        "risk_off_v4_alert": "De-risk 신호",
+        "risk_off_v4_cash": "Cash 신호",
+        "axis1_vol_credit_stress": "변동성/신용 스트레스",
+        "axis2_fx_liquidity_stress": "달러/유동성 스트레스",
+        "axis3_peak_fragility_stress": "고점취약성 스트레스",
+        "dominant_axis": "주된 위험축",
+        "watch_event_recall_20d": "Watch 선제포착률",
+        "derisk_event_recall_20d": "De-risk 선제포착률",
+        "cash_event_recall_20d": "Cash 선제포착률",
+        "caught_loss_ratio": "잡은 손실비율",
+        "watch_alert_rate": "Watch 발생률",
+        "derisk_alert_rate": "De-risk 발생률",
+        "cash_alert_rate": "Cash 발생률",
+        "daily_recall": "일간 Recall",
+        "alert_rate": "신호발생률",
+        "weight": "편입비중",
+        "applied_risk_off_prob": "적용 Risk-Off 확률",
+        "applied_risk_off_stage": "적용 Risk-Off 단계",
+        "target_risk_weight": "목표 위험자산",
+        "target_safe_weight": "목표 안전자산",
+        "periods": "검증 주수",
+        "start": "시작일",
+        "end": "종료일",
+        "cumulative_return": "누적수익률",
+        "hit_positive": "주간 양수비율",
+        "avg_weekly_return": "평균 주간수익률",
+        "avg_risk_weight": "평균 위험자산",
+        "avg_safe_weight": "평균 안전자산",
+        "avg_cash_weight": "평균 현금",
+        "total_weight": "총비중",
+        "risk_total": "위험자산",
+        "safe_total": "안전자산",
+        "cash_weight": "현금",
+        "max_single": "개별 최대",
     }
 )
 
@@ -253,17 +321,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
-    data = load_inputs()
-    chart_paths = create_recent_market_charts(data, args.output / "charts")
-    similar = find_similar_macro_risk_days(data["risk_vector"], data["driver_panel"], args.similar_days)
-    grouped = group_summary(data["asset_scores"])
-    html_text = render_html(data, similar, grouped, chart_paths, args.top_assets)
-    out = args.output / "screening_dashboard.html"
-    out.write_text(html_text, encoding="utf-8")
-    similar.to_csv(args.output / "similar_macro_risk_days.csv", index=False, encoding="utf-8-sig")
-    grouped.to_csv(args.output / "asset_group_summary.csv", index=False, encoding="utf-8-sig")
-    print(out.resolve())
+    # The screening page is now latest-model-only. Keep this legacy entry point
+    # so existing commands do not regenerate the old mixed V3/V4 dashboard.
+    from generate_latest_model_screening_html import generate
+
+    generate(args.output)
 
 
 def load_inputs() -> dict[str, pd.DataFrame]:
@@ -288,6 +350,23 @@ def load_inputs() -> dict[str, pd.DataFrame]:
         "weekly_basket_summary": ROOT / "outputs/weekly_screening_rank_backtest_latest/tables/weekly_basket_backtest_summary.csv",
         "weekly_basket_current": ROOT / "outputs/weekly_screening_rank_backtest_latest/tables/latest_basket_scores.csv",
         "weekly_basket_constituents": ROOT / "outputs/weekly_screening_rank_backtest_latest/tables/latest_basket_constituent_scores.csv",
+        "etf_leadership_current": ROOT / "outputs/etf_leadership_current/current_etf_leadership_scores.csv",
+        "etf_leadership_coverage": ROOT / "outputs/etf_leadership_current/etf_holdings_ohlcv_coverage.csv",
+        "etf_leadership_failed": ROOT / "outputs/etf_leadership_current/failed_component_ohlcv_tickers.csv",
+        "etf_leadership_performance": ROOT / "outputs/etf_leadership_current/etf_leadership_performance_summary.csv",
+        "etf_leadership_roadmap": ROOT / "outputs/etf_leadership_current/institutional_upgrade_roadmap.csv",
+        "etf_leadership_selective": ROOT / "outputs/etf_leadership_selective_strategy_risk_gated/test_summary.csv",
+        "current_optimized_risk_signal": ROOT / "outputs/risk_model_walkforward_optimizer_latest/tables/current_optimized_risk_signal.csv",
+        "risk_off_v4_current": ROOT / "outputs/risk_off_v4_event_label_latest/tables/current_risk_off_v4_state.csv",
+        "risk_off_v4_comparison": ROOT / "outputs/risk_off_v4_event_label_latest/tables/risk_off_v3_v4_comparison.csv",
+        "portfolio_latest": ROOT / "outputs/portfolio_rebalance_validator_latest/tables/latest_constrained_portfolio.csv",
+        "portfolio_summary": ROOT / "outputs/portfolio_rebalance_validator_latest/tables/weekly_constrained_portfolio_summary.csv",
+        "portfolio_constraints": ROOT / "outputs/portfolio_rebalance_validator_latest/tables/weekly_constraint_validation.csv",
+        "long_proxy_summary": ROOT / "outputs/long_horizon_risk_off_proxy_backtest_latest/tables/long_horizon_proxy_strategy_summary.csv",
+        "long_proxy_crisis": ROOT / "outputs/long_horizon_risk_off_proxy_backtest_latest/tables/long_horizon_proxy_crisis_windows.csv",
+        "long_proxy_exposure": ROOT / "outputs/long_horizon_risk_off_proxy_backtest_latest/tables/long_horizon_proxy_v4_stage_exposure.csv",
+        "long_selection_summary": ROOT / "outputs/long_history_proxy_selection_backtest_latest/tables/proxy_selection_backtest_summary.csv",
+        "long_selection_ic": ROOT / "outputs/long_history_proxy_selection_backtest_latest/tables/proxy_selection_rank_ic.csv",
     }
     out: dict[str, pd.DataFrame] = {}
     for name, path in paths.items():
@@ -295,6 +374,8 @@ def load_inputs() -> dict[str, pd.DataFrame]:
             out[name] = pd.DataFrame()
             continue
         parse_dates = ["Date"] if name in {"risk_vector", "driver_panel", "optimizer_current"} else None
+        if name in {"risk_off_v4_current", "portfolio_latest", "portfolio_constraints"}:
+            parse_dates = ["date"]
         out[name] = pd.read_csv(path, parse_dates=parse_dates)
     return out
 
@@ -745,8 +826,39 @@ def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: p
     weekly_basket_current = data.get("weekly_basket_current", pd.DataFrame()).copy()
     weekly_basket_summary = data.get("weekly_basket_summary", pd.DataFrame()).copy()
     weekly_basket_constituents = data.get("weekly_basket_constituents", pd.DataFrame()).copy()
+    etf_leadership_current = data.get("etf_leadership_current", pd.DataFrame()).copy()
+    etf_leadership_coverage = data.get("etf_leadership_coverage", pd.DataFrame()).copy()
+    etf_leadership_failed = data.get("etf_leadership_failed", pd.DataFrame()).copy()
+    etf_leadership_performance = data.get("etf_leadership_performance", pd.DataFrame()).copy()
+    etf_leadership_roadmap = data.get("etf_leadership_roadmap", pd.DataFrame()).copy()
+    etf_leadership_selective = data.get("etf_leadership_selective", pd.DataFrame()).copy()
+    current_optimized_risk_signal = data.get("current_optimized_risk_signal", pd.DataFrame()).copy()
+    risk_off_v4_current = data.get("risk_off_v4_current", pd.DataFrame()).copy()
+    risk_off_v4_comparison = data.get("risk_off_v4_comparison", pd.DataFrame()).copy()
+    portfolio_latest = data.get("portfolio_latest", pd.DataFrame()).copy()
+    portfolio_summary = data.get("portfolio_summary", pd.DataFrame()).copy()
+    portfolio_constraints = data.get("portfolio_constraints", pd.DataFrame()).copy()
+    long_proxy_summary = data.get("long_proxy_summary", pd.DataFrame()).copy()
+    long_proxy_crisis = data.get("long_proxy_crisis", pd.DataFrame()).copy()
+    long_proxy_exposure = data.get("long_proxy_exposure", pd.DataFrame()).copy()
+    long_selection_summary = data.get("long_selection_summary", pd.DataFrame()).copy()
+    long_selection_ic = data.get("long_selection_ic", pd.DataFrame()).copy()
+    if not long_selection_summary.empty and "Sharpe" in long_selection_summary:
+        long_selection_summary["Sharpe"] = pd.to_numeric(long_selection_summary["Sharpe"], errors="coerce")
+        long_selection_summary = long_selection_summary.sort_values("Sharpe", ascending=False)
     if not weekly_basket_constituents.empty:
         weekly_basket_constituents = weekly_basket_constituents.sort_values(["basket", "basket_rank"]).groupby("basket").head(8)
+    if not etf_leadership_failed.empty:
+        etf_leadership_failed = etf_leadership_failed.sort_values(["etf_ticker", "weight"], ascending=[True, False]).groupby("etf_ticker").head(6)
+    if not etf_leadership_selective.empty:
+        for col in ["Sharpe", "trade_hit_ratio_excess_gt0", "trade_positive_return_ratio", "CAGR", "MDD", "coverage"]:
+            if col in etf_leadership_selective:
+                etf_leadership_selective[col] = pd.to_numeric(etf_leadership_selective[col], errors="coerce")
+        etf_leadership_selective = (
+            etf_leadership_selective.sort_values(["horizon", "Sharpe"], ascending=[True, False])
+            .groupby("horizon")
+            .head(6)
+        )
     grouped = grouped.copy()
     if not grouped.empty:
         grouped["group"] = grouped["group"].map(lambda x: GROUP_LABELS.get(str(x), str(x)))
@@ -770,6 +882,14 @@ def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: p
         ("주도 위험축", translate_state(current.get("dominant_risk_vector", "")), "가장 큰 위험 원인"),
         ("위험 단계", translate_state(current.get("risk_phase", "")), "Normal/Warning/Risk-Off"),
     ]
+    v4_1m = risk_off_v4_current[risk_off_v4_current["horizon"].astype(str).eq("1m")].tail(1) if not risk_off_v4_current.empty and "horizon" in risk_off_v4_current else pd.DataFrame()
+    v4_1w = risk_off_v4_current[risk_off_v4_current["horizon"].astype(str).eq("1w")].tail(1) if not risk_off_v4_current.empty and "horizon" in risk_off_v4_current else pd.DataFrame()
+    if not v4_1m.empty:
+        row = v4_1m.iloc[0]
+        cards.insert(0, ("Risk-Off V4 1개월", esc(row.get("risk_off_v4_stage", "")), f"확률 {safe_float(row.get('risk_off_v4_prob')):.1%}"))
+    if not v4_1w.empty:
+        row = v4_1w.iloc[0]
+        cards.insert(1, ("Risk-Off V4 1주", esc(row.get("risk_off_v4_stage", "")), f"확률 {safe_float(row.get('risk_off_v4_prob')):.1%}"))
     axis = [
         ("X축 유동성·신용·환율", current.get("macro_liquidity_axis_x", 0)),
         ("Y축 주가·변동성 붕괴", current.get("market_breakdown_axis_y", 0)),
@@ -907,6 +1027,79 @@ def render_html(data: dict[str, pd.DataFrame], similar: pd.DataFrame, grouped: p
     <div>
       <h2>바스켓 내부 상위 ETF</h2>
       <div class="table-wrap">{df_to_html(weekly_basket_constituents, ["basket","basket_rank","symbol","name","group","institutional_score_0_100","calibrated_prob_1w","calibrated_prob_4w","realized_return_1w","realized_return_4w"])}</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>ETF 리더십 현재 스크리닝</h2>
+    <p class="muted">매크로/Regime을 제외하고 ETF 자체 상대강도와 구성종목 리더십만으로 계산한 현재 투자매력도입니다. 국내 ETF는 KOSPI200, 해외 ETF는 QQQ를 기준지수로 봅니다.</p>
+    <div class="table-wrap">{df_to_html(etf_leadership_current.head(30), ["leadership_rank","etf_ticker","name","group","leadership_score_0_100","Final_Rule_Score","holding_logic","ETF_RS_20D","ETF_RS_60D","ETF_RS_120D","RS_positive_share","MA60_breadth","effective_N","top5_weight_share","weight_source_note"])}</div>
+  </section>
+
+  <section class="grid two">
+    <div>
+      <h2>ETF 리더십 실전 필터 성능</h2>
+      <p class="muted">2023-2024 검증구간에서 진입 필터를 고르고, 2025년 이후 구간에서 평가한 결과입니다. 구성종목근사 모델은 현재 구성종목을 과거에도 쓴 근사치라 strict 모델보다 신뢰도를 낮게 봅니다.</p>
+      <div class="table-wrap">{df_to_html(etf_leadership_selective, ["strategy_mode","model","score_label","horizon","top_k","threshold_col","threshold","risk_block_limit","invested_periods","coverage","Sharpe","trade_hit_ratio_excess_gt0","trade_positive_return_ratio","CAGR","MDD"])}</div>
+    </div>
+    <div>
+      <h2>현재 위험자산 진입 게이트</h2>
+      <p class="muted">ETF 리더십 랭킹은 매크로를 쓰지 않습니다. 다만 최종 진입 여부는 Risk-Off Sentinel의 현재 위험 신호로 별도 제어합니다.</p>
+      <div class="table-wrap">{df_to_html(current_optimized_risk_signal.head(1), ["Date","model_regime","risk_off_score","composite_vector_risk","peak_fragility","analog_macro_risk","correction_pressure","RAI_z","optimized_action"])}</div>
+    </div>
+  </section>
+
+  <section class="grid two">
+    <div>
+      <h2>Risk-Off V4 현재 상태</h2>
+      <p class="muted">V4는 실전 손실 이벤트 라벨로 재학습한 최신 방어 게이트입니다. Watch는 감시, De-risk는 위험자산 축소, Cash는 강한 방어 상태입니다.</p>
+      <div class="table-wrap">{df_to_html(risk_off_v4_current, ["horizon","date","risk_off_v4_prob","risk_off_v4_watch_threshold","risk_off_v4_derisk_threshold","risk_off_v4_cash_threshold","risk_off_v4_stage","risk_off_v4_watch","risk_off_v4_alert","risk_off_v4_cash","axis1_vol_credit_stress","axis2_fx_liquidity_stress","axis3_peak_fragility_stress","dominant_axis"])}</div>
+    </div>
+    <div>
+      <h2>Risk-Off V3 대비 V4 검증</h2>
+      <p class="muted">AUC보다 손실 이벤트 선제 포착률과 잡은 손실비율을 우선합니다. De-risk 선제포착률이 80% 이상인지가 핵심입니다.</p>
+      <div class="table-wrap">{df_to_html(risk_off_v4_comparison, ["model","horizon","auc","daily_recall","precision","false_alarm_rate","watch_event_recall_20d","derisk_event_recall_20d","cash_event_recall_20d","caught_loss_ratio","watch_alert_rate","derisk_alert_rate","cash_alert_rate"])}</div>
+    </div>
+  </section>
+
+  <section class="grid two">
+    <div>
+      <h2>제약 반영 최신 리밸런싱 포트폴리오</h2>
+      <p class="muted">개별 ETF 20%, 위험자산 70%, 세부 바스켓 상한을 모두 적용한 결과입니다. V4 stage가 Cash면 위험자산 목표를 15%까지 낮춥니다.</p>
+      <div class="table-wrap">{df_to_html(portfolio_latest, ["date","symbol","name","basket","weight","portfolio_score_pct","applied_risk_off_prob","applied_risk_off_stage","target_risk_weight","target_safe_weight"])}</div>
+    </div>
+    <div>
+      <h2>리밸런싱 백테스트와 제약 검증</h2>
+      <div class="table-wrap">{df_to_html(portfolio_summary, ["periods","start","end","cumulative_return","CAGR","MDD","Sharpe","hit_positive","avg_weekly_return","avg_risk_weight","avg_safe_weight","avg_cash_weight"])}</div>
+      <h3>최근 제약 검증</h3>
+      <div class="table-wrap">{df_to_html(portfolio_constraints.tail(8), ["date","total_weight","risk_total","safe_total","cash_weight","max_single","total_weight_violation","single_cap_violation","risk_total_violation","safe_total_violation"])}</div>
+    </div>
+  </section>
+
+  <section class="grid two">
+    <div>
+      <h2>장기 프록시 백테스트: Risk-Off 게이트</h2>
+      <p class="muted">ETF 상장 전 기간까지 보려면 실제 ETF 대신 Nasdaq/S&P500/SOX/Russell 위험자산 프록시와 금·달러·장기채·현금 안전자산 프록시를 사용합니다. V4 adaptive는 고점취약성만 높은 Cash 신호를 완화한 보강 버전입니다.</p>
+      <div class="table-wrap">{df_to_html(long_proxy_summary, ["strategy","start","end","days","total_return","CAGR","ann_vol","Sharpe","Sortino","MDD","Calmar","positive_day_rate"])}</div>
+    </div>
+    <div>
+      <h2>장기 위기구간 MDD 검증</h2>
+      <div class="table-wrap">{df_to_html(long_proxy_crisis.sort_values(["window","strategy"]).head(80) if not long_proxy_crisis.empty else long_proxy_crisis, ["window","strategy","start","end","total_return","MDD","vol"])}</div>
+      <h3>V4 단계별 노출</h3>
+      <div class="table-wrap">{df_to_html(long_proxy_exposure, ["v4_stage_combined","days","avg_risk_return_next_day","avg_safe_return_next_day","avg_v4_combined_return","avg_risk_weight","avg_adaptive_risk_weight","peak_only_relaxed_days"])}</div>
+    </div>
+  </section>
+
+  <section class="grid two">
+    <div>
+      <h2>장기 프록시 백테스트: ETF 리더십/안전자산 선택</h2>
+      <p class="muted">실제 GAPS ETF의 과거 상장/holdings 제약을 분리하기 위해, 2010년대부터 상장된 글로벌 프록시 ETF로 리더십과 안전자산 선택 로직을 검증한 결과입니다.</p>
+      <div class="table-wrap">{df_to_html(long_selection_summary.head(16), ["strategy","frequency","top_k","start","end","periods","total_return","CAGR","Sharpe","MDD","hit_rate_positive","avg_excess_return","hit_rate_excess_positive"])}</div>
+    </div>
+    <div>
+      <h2>장기 프록시 Rank IC</h2>
+      <p class="muted">점수가 높았던 ETF가 이후 1주/1개월 수익률 또는 QQQ 대비 초과수익 순위에서도 높았는지 보는 순위상관입니다.</p>
+      <div class="table-wrap">{df_to_html(long_selection_ic, ["score","target","dates","mean_rank_ic","median_rank_ic","positive_ic_rate"])}</div>
     </div>
   </section>
 
@@ -1163,7 +1356,7 @@ def fmt_value(column: str, value: object) -> str:
     if isinstance(value, (int, np.integer)):
         return f"{int(value):,}"
     if isinstance(value, (float, np.floating)):
-        if column.endswith("return") or "return" in column or "prob" in column or "rate" in column or column in {"drawdown_252d", "change_5d", "change_20d"}:
+        if column.endswith("return") or "return" in column or "prob" in column or "rate" in column or "ratio" in column or column in {"drawdown_252d", "change_5d", "change_20d", "coverage", "CAGR", "MDD"}:
             return f"{value:.2%}"
         if abs(value) < 1e-4 and value != 0:
             return f"{value:.2e}"
