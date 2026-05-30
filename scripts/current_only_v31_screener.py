@@ -11,6 +11,7 @@ from leadership_v2_constrained_70_30_backtest import ETF_CAP, RISK_CAPS, add_tax
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_UNIVERSE = ROOT / "data" / "etf_universe_leadership.csv"
+DEFAULT_HOLDINGS = ROOT / "data" / "etf_holdings_static_2019_repaired.csv"
 DEFAULT_CACHE_DIR = ROOT / "data" / "gaps_long_lived_cache"
 DEFAULT_OUTPUT = ROOT / "outputs" / "current_only_v31_screening"
 BENCHMARK_SENSITIVE_EXCLUDES = {"105010.KS", "101280.KS"}  # Latin America, Japan TOPIX
@@ -29,6 +30,7 @@ CYCLICAL_GROUPS = {
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Current-only v3.1 screener for the full GAPS ETF universe.")
     p.add_argument("--universe", default=str(DEFAULT_UNIVERSE))
+    p.add_argument("--holdings", default=str(DEFAULT_HOLDINGS))
     p.add_argument("--cache-dir", default=str(DEFAULT_CACHE_DIR))
     p.add_argument("--output-dir", default=str(DEFAULT_OUTPUT))
     p.add_argument("--start", default="2010-01-01")
@@ -38,6 +40,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--min-history-days", type=int, default=120)
     p.add_argument("--benchmark-20d-threshold", type=float, default=0.03)
     p.add_argument("--benchmark-60d-threshold", type=float, default=0.08)
+    p.add_argument("--skip-component-features", action="store_true")
     return p.parse_args()
 
 
@@ -55,6 +58,11 @@ def main() -> None:
     screen = build_current_screen(universe, prices, args.min_history_days)
     if screen.empty:
         raise RuntimeError("No current-only candidates could be scored.")
+    if not args.skip_component_features:
+        holdings = pd.read_csv(args.holdings)
+        component_prices = load_component_prices(universe, holdings, prices, args)
+        component = build_latest_component_features(screen, holdings, component_prices)
+        screen = screen.merge(component, on=["date", "etf_ticker", "benchmark_ticker"], how="left")
     screen = add_taxonomy(screen)
     screen = add_current_v31_score(screen, args.benchmark_20d_threshold, args.benchmark_60d_threshold)
     screen = screen.sort_values("current_v31_score", ascending=False).reset_index(drop=True)
@@ -103,6 +111,13 @@ def main() -> None:
                 "ETF_RS_60D",
                 "ETF_RS_120D",
                 "RS_slope_20D",
+                "weighted_HP",
+                "HP90_share",
+                "weighted_component_RS_20D",
+                "RS_positive_share",
+                "MA60_breadth",
+                "MA200_breadth",
+                "Breadth_change_20D",
                 "current_v31_score",
             ]
         ],
@@ -126,6 +141,7 @@ def main() -> None:
     print(f"latest_date {screen['date'].max().date()}")
     print(f"universe_count {universe['etf_ticker'].nunique()}")
     print(f"scored_count {len(screen)}")
+    print(f"component_feature_count {int(screen['MA60_breadth'].notna().sum()) if 'MA60_breadth' in screen else 0}")
     print(f"benchmark_strong {bool(screen['benchmark_strong'].iloc[0])}")
     print()
     print("TARGET")
@@ -144,6 +160,8 @@ def main() -> None:
                 "ETF_RS_20D",
                 "ETF_RS_60D",
                 "ETF_RS_120D",
+                "MA60_breadth",
+                "HP90_share",
             ]
         ].to_string(
             index=False,
@@ -154,6 +172,8 @@ def main() -> None:
                 "ETF_RS_20D": pct,
                 "ETF_RS_60D": pct,
                 "ETF_RS_120D": pct,
+                "MA60_breadth": pct,
+                "HP90_share": pct,
                 "current_v31_score": lambda x: f"{x:.4f}",
             },
         )
@@ -173,6 +193,7 @@ def main() -> None:
                 "ETF_RS_20D",
                 "ETF_RS_60D",
                 "ETF_RS_120D",
+                "MA60_breadth",
             ]
         ]
         .head(20)
@@ -183,6 +204,7 @@ def main() -> None:
                 "ETF_RS_20D": pct,
                 "ETF_RS_60D": pct,
                 "ETF_RS_120D": pct,
+                "MA60_breadth": pct,
             },
         )
     )
@@ -217,6 +239,60 @@ def load_or_download_prices(tickers: list[str], args: argparse.Namespace) -> pd.
     cache.parent.mkdir(parents=True, exist_ok=True)
     prices.to_csv(cache, encoding="utf-8-sig")
     pd.DataFrame({"ticker": sorted(set(failed))}).to_csv(cache.with_name(cache.stem + "_failed.csv"), index=False, encoding="utf-8-sig")
+    return prices
+
+
+def load_component_prices(universe: pd.DataFrame, holdings: pd.DataFrame, etf_prices: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
+    holdings = holdings.copy()
+    holdings["etf_ticker"] = holdings["etf_ticker"].astype(str).str.strip()
+    holdings["component_ticker"] = holdings["component_ticker"].astype(str).str.strip()
+    keep = set(universe["etf_ticker"].astype(str))
+    holdings = holdings[holdings["etf_ticker"].isin(keep)].copy()
+    required = sorted(
+        set(universe["etf_ticker"].astype(str))
+        .union(universe["benchmark_ticker"].astype(str))
+        .union(holdings["component_ticker"].astype(str))
+    )
+    end = args.end or pd.Timestamp.today().strftime("%Y-%m-%d")
+    cache = Path(args.cache_dir) / f"current_only_component_prices_{args.start}_{end}.csv".replace(":", "-")
+    if cache.exists() and not args.force_download:
+        return pd.read_csv(cache, parse_dates=["date"]).set_index("date").sort_index()
+
+    # Reuse ETF/benchmark prices already downloaded, then fetch only missing components.
+    pieces = [etf_prices]
+    existing = set(etf_prices.columns)
+    missing = [ticker for ticker in required if ticker not in existing]
+    if missing:
+        component_args = argparse.Namespace(**vars(args))
+        component_args.chunk_size = min(args.chunk_size, 80)
+        downloaded = download_price_matrix(missing, component_args)
+        if not downloaded.empty:
+            pieces.append(downloaded)
+    prices = pd.concat(pieces, axis=1).loc[:, lambda x: ~x.columns.duplicated()].sort_index()
+    prices.index.name = "date"
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    prices.to_csv(cache, encoding="utf-8-sig")
+    return prices
+
+
+def download_price_matrix(tickers: list[str], args: argparse.Namespace) -> pd.DataFrame:
+    import yfinance as yf
+
+    pieces = []
+    failed = []
+    for i in range(0, len(tickers), args.chunk_size):
+        chunk = tickers[i : i + args.chunk_size]
+        print(f"[component download] {i + 1}-{min(i + args.chunk_size, len(tickers))}/{len(tickers)}", flush=True)
+        try:
+            raw = yf.download(chunk, start=args.start, end=args.end, auto_adjust=True, progress=False, threads=True, group_by="column")
+            close = extract_close(raw, chunk)
+            if not close.empty:
+                pieces.append(close)
+        except Exception:
+            failed.extend(chunk)
+    prices = pd.concat(pieces, axis=1).loc[:, lambda x: ~x.columns.duplicated()].sort_index() if pieces else pd.DataFrame()
+    if failed:
+        print(f"[component download] failed chunks/tickers: {len(set(failed))}", flush=True)
     return prices
 
 
@@ -276,6 +352,125 @@ def build_current_screen(universe: pd.DataFrame, prices: pd.DataFrame, min_histo
     return pd.DataFrame(rows).replace([np.inf, -np.inf], np.nan).dropna(subset=["ETF_RS_20D", "ETF_RS_60D", "ETF_RS_120D"])
 
 
+def build_latest_component_features(screen: pd.DataFrame, holdings: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
+    px = prices.sort_index().apply(pd.to_numeric, errors="coerce").ffill(limit=5)
+    latest = pd.Timestamp(screen["date"].max())
+    ret20 = px.pct_change(20, fill_method=None)
+    ret60 = px.pct_change(60, fill_method=None)
+    ma60 = px.rolling(60, min_periods=45).mean()
+    ma200 = px.rolling(200, min_periods=150).mean()
+    high252 = px.rolling(252, min_periods=180).max()
+
+    holdings = holdings.copy()
+    holdings["etf_ticker"] = holdings["etf_ticker"].astype(str).str.strip()
+    holdings["component_ticker"] = holdings["component_ticker"].astype(str).str.strip()
+    holdings["weight"] = pd.to_numeric(holdings["weight"], errors="coerce")
+    rows = []
+    for row in screen.itertuples(index=False):
+        etf = str(row.etf_ticker)
+        benchmark = str(row.benchmark_ticker)
+        h = holdings[holdings["etf_ticker"].eq(etf)][["component_ticker", "weight"]].dropna().copy()
+        h = h[(h["weight"] > 0) & h["component_ticker"].isin(px.columns)]
+        if h.empty or latest not in px.index or benchmark not in px.columns:
+            rows.append(empty_component_row(latest, etf, benchmark))
+            continue
+        h = h.groupby("component_ticker", as_index=False)["weight"].sum()
+        h["weight"] = h["weight"] / h["weight"].sum()
+        comps = h["component_ticker"].tolist()
+        w = h.set_index("component_ticker")["weight"].astype(float)
+        component_price = px.loc[latest, comps].astype(float)
+        valid = component_price.notna()
+        comps = [c for c in comps if bool(valid.get(c, False))]
+        if not comps:
+            rows.append(empty_component_row(latest, etf, benchmark))
+            continue
+        w = w.reindex(comps)
+        w = w / w.sum()
+        hp = (px.loc[latest, comps] / high252.loc[latest, comps]).astype(float)
+        c_ret20 = ret20.loc[latest, comps].astype(float)
+        c_ret60 = ret60.loc[latest, comps].astype(float)
+        b_ret20 = float(ret20.at[latest, benchmark]) if pd.notna(ret20.at[latest, benchmark]) else np.nan
+        b_ret60 = float(ret60.at[latest, benchmark]) if pd.notna(ret60.at[latest, benchmark]) else np.nan
+        c_rs20 = c_ret20 - b_ret20
+        c_rs60 = c_ret60 - b_ret60
+        ma60_values = ma60.loc[latest, comps]
+        ma200_values = ma200.loc[latest, comps]
+        prior_idx = px.index.get_indexer([latest])[0] - 20
+        if prior_idx >= 0:
+            prior_date = px.index[prior_idx]
+            prior_price = px.loc[prior_date, comps].astype(float)
+            prior_hp = prior_price / high252.loc[prior_date, comps].astype(float)
+            prior_ma60 = ma60.loc[prior_date, comps]
+            prior_breadth = weighted_share(prior_price > prior_ma60, prior_price.notna() & prior_ma60.notna(), w)
+            prior_hp90 = weighted_share(prior_hp >= 0.9, prior_hp.notna(), w)
+        else:
+            prior_breadth = np.nan
+            prior_hp90 = np.nan
+        ma60_breadth = weighted_share(px.loc[latest, comps] > ma60_values, px.loc[latest, comps].notna() & ma60_values.notna(), w)
+        hp90 = weighted_share(hp >= 0.9, hp.notna(), w)
+        rows.append(
+            {
+                "date": latest,
+                "etf_ticker": etf,
+                "benchmark_ticker": benchmark,
+                "weighted_HP": weighted_mean(hp, w),
+                "median_HP": float(hp.median(skipna=True)),
+                "HP90_share": hp90,
+                "HP_change_20D": hp90 - prior_hp90 if pd.notna(prior_hp90) else np.nan,
+                "weighted_component_RS_20D": weighted_mean(c_rs20, w),
+                "weighted_component_RS_60D": weighted_mean(c_rs60, w),
+                "median_component_RS_20D": float(c_rs20.median(skipna=True)),
+                "RS_positive_share": weighted_share(c_rs20 > 0, c_rs20.notna(), w),
+                "MA60_breadth": ma60_breadth,
+                "MA200_breadth": weighted_share(px.loc[latest, comps] > ma200_values, px.loc[latest, comps].notna() & ma200_values.notna(), w),
+                "Breadth_change_20D": ma60_breadth - prior_breadth if pd.notna(prior_breadth) else np.nan,
+                "median_component_return_20D": float(c_ret20.median(skipna=True)),
+                "median_component_return_60D": float(c_ret60.median(skipna=True)),
+                "holding_count": len(comps),
+                "effective_N": float(1.0 / np.square(w).sum()) if np.square(w).sum() > 0 else np.nan,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def empty_component_row(date: pd.Timestamp, etf: str, benchmark: str) -> dict[str, object]:
+    return {
+        "date": date,
+        "etf_ticker": etf,
+        "benchmark_ticker": benchmark,
+        "weighted_HP": np.nan,
+        "median_HP": np.nan,
+        "HP90_share": np.nan,
+        "HP_change_20D": np.nan,
+        "weighted_component_RS_20D": np.nan,
+        "weighted_component_RS_60D": np.nan,
+        "median_component_RS_20D": np.nan,
+        "RS_positive_share": np.nan,
+        "MA60_breadth": np.nan,
+        "MA200_breadth": np.nan,
+        "Breadth_change_20D": np.nan,
+        "median_component_return_20D": np.nan,
+        "median_component_return_60D": np.nan,
+        "holding_count": 0,
+        "effective_N": np.nan,
+    }
+
+
+def weighted_mean(values: pd.Series, weights: pd.Series) -> float:
+    data = pd.concat([values.rename("value"), weights.rename("weight")], axis=1).dropna()
+    if data.empty or data["weight"].sum() <= 0:
+        return np.nan
+    return float((data["value"] * data["weight"]).sum() / data["weight"].sum())
+
+
+def weighted_share(condition: pd.Series, valid: pd.Series, weights: pd.Series) -> float:
+    data = pd.concat([condition.rename("condition"), valid.rename("valid"), weights.rename("weight")], axis=1).dropna()
+    data = data[data["valid"].astype(bool)]
+    if data.empty or data["weight"].sum() <= 0:
+        return np.nan
+    return float(data.loc[data["condition"].astype(bool), "weight"].sum() / data["weight"].sum())
+
+
 def rolling_log_slope(series: pd.Series) -> float:
     if len(series) < 20 or series.isna().any():
         return 0.0
@@ -302,7 +497,17 @@ def add_current_v31_score(frame: pd.DataFrame, benchmark_20d_threshold: float, b
     weak_trend = out["ETF_RS_20D"].lt(0)
     out["benchmark_strong"] = out["benchmark_return_20D"].gt(benchmark_20d_threshold) | out["benchmark_return_60D"].gt(benchmark_60d_threshold)
     out["benchmark_strong_excluded"] = out["benchmark_strong"] & out["etf_ticker"].isin(BENCHMARK_SENSITIVE_EXCLUDES)
-    out["current_v31_score"] = out["persistent_rs"]
+    component_score = pd.Series(0.0, index=out.index)
+    for weight, col in [
+        (0.20, "weighted_component_RS_20D"),
+        (0.15, "weighted_component_RS_60D"),
+        (0.15, "MA60_breadth"),
+        (0.10, "HP90_share"),
+        (0.05, "Breadth_change_20D"),
+    ]:
+        if col in out.columns:
+            component_score += weight * z(out, col)
+    out["current_v31_score"] = out["persistent_rs"] + component_score
     out["current_v31_score"] += np.where(out["is_mean_reversion_group"] & short_rebound, -0.50, 0.0)
     out["current_v31_score"] += np.where(out["is_cyclical_group"] & weak_persistence, -0.40, 0.0)
     out["current_v31_score"] += np.where(out["is_cyclical_group"] & weak_trend, -0.20, 0.0)
