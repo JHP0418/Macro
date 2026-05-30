@@ -12,6 +12,7 @@ from leadership_v2_constrained_70_30_backtest import ETF_CAP, RISK_CAPS, add_tax
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_UNIVERSE = ROOT / "data" / "etf_universe_leadership.csv"
 DEFAULT_HOLDINGS = ROOT / "data" / "etf_holdings_static_2019_repaired.csv"
+DEFAULT_CLASSIFICATION = ROOT / "data" / "gaps_pdf_color_classification.csv"
 DEFAULT_CACHE_DIR = ROOT / "data" / "gaps_long_lived_cache"
 DEFAULT_OUTPUT = ROOT / "outputs" / "current_only_v31_screening"
 BENCHMARK_SENSITIVE_EXCLUDES = {"105010.KS", "101280.KS"}  # Latin America, Japan TOPIX
@@ -31,6 +32,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Current-only v3.1 screener for the full GAPS ETF universe.")
     p.add_argument("--universe", default=str(DEFAULT_UNIVERSE))
     p.add_argument("--holdings", default=str(DEFAULT_HOLDINGS))
+    p.add_argument("--classification", default=str(DEFAULT_CLASSIFICATION))
     p.add_argument("--cache-dir", default=str(DEFAULT_CACHE_DIR))
     p.add_argument("--output-dir", default=str(DEFAULT_OUTPUT))
     p.add_argument("--start", default="2010-01-01")
@@ -49,7 +51,7 @@ def main() -> None:
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    universe = pd.read_csv(args.universe)
+    universe = load_universe(args.universe, args.classification)
     universe["etf_ticker"] = universe["etf_ticker"].astype(str).str.strip()
     universe["benchmark_ticker"] = universe["benchmark_ticker"].astype(str).str.strip()
     tickers = sorted(set(universe["etf_ticker"]).union(universe["benchmark_ticker"]))
@@ -63,7 +65,7 @@ def main() -> None:
         component_prices = load_component_prices(universe, holdings, prices, args)
         component = build_latest_component_features(screen, holdings, component_prices)
         screen = screen.merge(component, on=["date", "etf_ticker", "benchmark_ticker"], how="left")
-    screen = add_taxonomy(screen)
+    screen = apply_pdf_taxonomy(add_taxonomy(screen))
     screen = add_current_v31_score(screen, args.benchmark_20d_threshold, args.benchmark_60d_threshold)
     screen = screen.sort_values("current_v31_score", ascending=False).reset_index(drop=True)
     screen["screen_rank"] = np.arange(1, len(screen) + 1)
@@ -242,6 +244,28 @@ def load_or_download_prices(tickers: list[str], args: argparse.Namespace) -> pd.
     return prices
 
 
+def load_universe(universe_path: str, classification_path: str) -> pd.DataFrame:
+    universe = pd.read_csv(universe_path)
+    path = Path(classification_path)
+    if not path.exists():
+        return universe
+    classification = pd.read_csv(path)
+    keep = ["etf_ticker", "pdf_asset_class", "pdf_sub_asset", "pdf_sub_asset_kr"]
+    classification = classification[[col for col in keep if col in classification.columns]].drop_duplicates("etf_ticker")
+    return universe.merge(classification, on="etf_ticker", how="left")
+
+
+def apply_pdf_taxonomy(frame: pd.DataFrame) -> pd.DataFrame:
+    out = frame.copy()
+    if "pdf_sub_asset" in out.columns:
+        mask = out["pdf_sub_asset"].notna()
+        out.loc[mask, "sub_asset"] = out.loc[mask, "pdf_sub_asset"]
+    if "pdf_asset_class" in out.columns:
+        mask = out["pdf_asset_class"].notna()
+        out.loc[mask, "asset_class"] = out.loc[mask, "pdf_asset_class"]
+    return out
+
+
 def load_component_prices(universe: pd.DataFrame, holdings: pd.DataFrame, etf_prices: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
     holdings = holdings.copy()
     holdings["etf_ticker"] = holdings["etf_ticker"].astype(str).str.strip()
@@ -335,6 +359,9 @@ def build_current_screen(universe: pd.DataFrame, prices: pd.DataFrame, min_histo
                 "name": getattr(row, "name", etf),
                 "group": getattr(row, "group", ""),
                 "ranking_group": getattr(row, "group", ""),
+                "pdf_asset_class": getattr(row, "pdf_asset_class", np.nan),
+                "pdf_sub_asset": getattr(row, "pdf_sub_asset", np.nan),
+                "pdf_sub_asset_kr": getattr(row, "pdf_sub_asset_kr", np.nan),
                 "ETF_return_20D": ret20.at[latest, etf],
                 "ETF_return_60D": ret60.at[latest, etf],
                 "ETF_return_120D": ret120.at[latest, etf],
