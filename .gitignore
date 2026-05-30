@@ -12,6 +12,7 @@ external_api_source/
 # explicitly re-added.
 scripts/*
 !scripts/walkforward_leadership_v2_backtest.py
+!scripts/current_only_v31_screener.py
 !scripts/leadership_v2_constrained_70_30_backtest.py
 !scripts/leadership_v2_sleeve_only_backtest.py
 !scripts/leadership_v31_light_overlay_backtest.py
