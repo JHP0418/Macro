@@ -19,6 +19,7 @@ from leadership_v2_constrained_70_30_backtest import (
 
 DEFAULT_INPUT = Path("outputs/leadership_v2_walkforward/walkforward_predictions.csv")
 DEFAULT_OUTPUT = Path("outputs/leadership_v31_light_overlay")
+DEFAULT_CLASSIFICATION = Path("data/gaps_pdf_color_classification.csv")
 
 MEAN_REVERSION_GROUPS = {"China equity", "China/HK growth", "Korea cyclical", "Korea value"}
 CYCLICAL_GROUPS = {
@@ -31,12 +32,20 @@ CYCLICAL_GROUPS = {
     "Oil",
 }
 BENCHMARK_SENSITIVE_EXCLUDES = {"105010.KS", "101280.KS"}  # Latin America, Japan TOPIX
+POLICY_CAPS = {
+    "domestic_equity_index": 0.30,
+    "domestic_equity_sector": 0.15,
+    "overseas_equity_index": 0.30,
+    "overseas_equity_sector": 0.10,
+    "fx_commodity": 0.20,
+}
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Leadership v3.1 light overlay with benchmark-strong exclusions.")
     p.add_argument("--input", default=str(DEFAULT_INPUT))
     p.add_argument("--output-dir", default=str(DEFAULT_OUTPUT))
+    p.add_argument("--classification", default=str(DEFAULT_CLASSIFICATION))
     p.add_argument("--tree-std-threshold", type=float, default=0.03067)
     p.add_argument("--benchmark-20d-threshold", type=float, default=0.03)
     p.add_argument("--benchmark-60d-threshold", type=float, default=0.08)
@@ -50,7 +59,8 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     pred = pd.read_csv(args.input, parse_dates=["date"])
-    pred = add_taxonomy(pred)
+    pred = apply_pdf_taxonomy(add_taxonomy(pred), args.classification)
+    pred = add_policy_group_relative_returns(pred)
     pred = add_v31_light_score(pred, args.benchmark_20d_threshold, args.benchmark_60d_threshold)
     pred.to_csv(out_dir / "predictions_with_v31_light_score.csv", index=False, encoding="utf-8-sig")
 
@@ -92,17 +102,20 @@ def add_v31_light_score(frame: pd.DataFrame, benchmark_20d_threshold: float, ben
     for col in numeric_cols:
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
 
+    rs20 = "blended_RS_20D" if "blended_RS_20D" in out.columns else "ETF_RS_20D"
+    rs60 = "blended_RS_60D" if "blended_RS_60D" in out.columns else "ETF_RS_60D"
+    rs120 = "blended_RS_120D" if "blended_RS_120D" in out.columns else "ETF_RS_120D"
     out["persistent_rs"] = (
-        0.15 * z_by_date(out, "ETF_RS_20D")
-        + 0.40 * z_by_date(out, "ETF_RS_60D")
-        + 0.35 * z_by_date(out, "ETF_RS_120D")
+        0.15 * z_by_date(out, rs20)
+        + 0.40 * z_by_date(out, rs60)
+        + 0.35 * z_by_date(out, rs120)
         + 0.10 * z_by_date(out, "RS_slope_20D")
     )
     out["is_mean_reversion_group"] = out["ranking_group"].isin(MEAN_REVERSION_GROUPS)
     out["is_cyclical_group"] = out["ranking_group"].isin(CYCLICAL_GROUPS)
 
-    short_rebound = out["ETF_RS_20D"].gt(0) & (out["ETF_RS_60D"].lt(0) | out["ETF_RS_120D"].lt(0))
-    weak_persistence = out["ETF_RS_60D"].lt(0) & out["ETF_RS_120D"].lt(0)
+    short_rebound = out[rs20].gt(0) & (out[rs60].lt(0) | out[rs120].lt(0))
+    weak_persistence = out[rs60].lt(0) & out[rs120].lt(0)
     weak_trend = out["MA60_breadth"].lt(0.45) | out["Breadth_change_20D"].lt(0)
     out["benchmark_strong"] = out["benchmark_return_20D"].gt(benchmark_20d_threshold) | out["benchmark_return_60D"].gt(
         benchmark_60d_threshold
@@ -121,6 +134,65 @@ def z_by_date(frame: pd.DataFrame, col: str) -> pd.Series:
     mean = x.groupby(frame["date"]).transform("mean")
     std = x.groupby(frame["date"]).transform("std").replace(0, np.nan)
     return ((x - mean) / std).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+
+def apply_pdf_taxonomy(frame: pd.DataFrame, classification_path: str | Path) -> pd.DataFrame:
+    out = frame.copy()
+    path = Path(classification_path)
+    if not path.exists():
+        return out
+    classification = pd.read_csv(path)
+    keep = ["etf_ticker", "pdf_asset_class", "pdf_sub_asset", "pdf_sub_asset_kr"]
+    classification = classification[[col for col in keep if col in classification.columns]].drop_duplicates("etf_ticker")
+    out = out.merge(classification, on="etf_ticker", how="left")
+    mask = out["pdf_sub_asset"].notna()
+    out.loc[mask, "sub_asset"] = out.loc[mask, "pdf_sub_asset"]
+    mask = out["pdf_asset_class"].notna()
+    out.loc[mask, "asset_class"] = out.loc[mask, "pdf_asset_class"]
+    return out
+
+
+def add_policy_group_relative_returns(frame: pd.DataFrame) -> pd.DataFrame:
+    out = frame.copy()
+    weights = pd.Series(POLICY_CAPS, dtype=float)
+    weights = weights / weights.sum()
+    for horizon in ["20D", "60D", "120D"]:
+        ret_col = f"ETF_return_{horizon}"
+        if ret_col not in out.columns:
+            continue
+        group_ret = out.groupby(["date", "sub_asset"])[ret_col].transform("mean")
+        policy = (
+            out.groupby(["date", "sub_asset"])[ret_col]
+            .mean()
+            .unstack("sub_asset")
+            .reindex(columns=weights.index)
+            .fillna(0.0)
+            .mul(weights, axis=1)
+            .sum(axis=1)
+            .rename(f"policy_benchmark_return_{horizon}")
+        )
+        out = out.merge(policy, left_on="date", right_index=True, how="left")
+        out[f"group_benchmark_return_{horizon}"] = group_ret
+        out[f"policy_RS_{horizon}"] = out[ret_col] - out[f"policy_benchmark_return_{horizon}"]
+        out[f"group_RS_{horizon}"] = out[ret_col] - out[f"group_benchmark_return_{horizon}"]
+        out[f"blended_RS_{horizon}"] = 0.60 * out[f"policy_RS_{horizon}"] + 0.40 * out[f"group_RS_{horizon}"]
+    forward_group = out.groupby(["date", "sub_asset"])["forward_20D_return"].transform("mean")
+    forward_policy = (
+        out.groupby(["date", "sub_asset"])["forward_20D_return"]
+        .mean()
+        .unstack("sub_asset")
+        .reindex(columns=weights.index)
+        .fillna(0.0)
+        .mul(weights, axis=1)
+        .sum(axis=1)
+        .rename("policy_forward_20D_return")
+    )
+    out = out.merge(forward_policy, left_on="date", right_index=True, how="left")
+    out["group_forward_20D_return"] = forward_group
+    out["blended_forward_20D_excess"] = (
+        out["forward_20D_return"] - (0.60 * out["policy_forward_20D_return"] + 0.40 * out["group_forward_20D_return"])
+    )
+    return out
 
 
 def monthly_dates(frame: pd.DataFrame) -> list[pd.Timestamp]:
@@ -236,9 +308,8 @@ def allocate_ranked(sample: pd.DataFrame, score_col: str, caps: dict[str, float]
 
 
 def benchmark_return(sample: pd.DataFrame) -> float:
-    kospi200 = sample[sample["etf_ticker"].eq("069500.KS")]
-    if not kospi200.empty:
-        return float(kospi200["forward_20D_return"].iloc[0])
+    if "policy_forward_20D_return" in sample.columns and sample["policy_forward_20D_return"].notna().any():
+        return float(sample["policy_forward_20D_return"].dropna().iloc[0])
     return float(sample["benchmark_forward_20D_return"].mean())
 
 

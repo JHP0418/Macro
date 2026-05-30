@@ -1,0 +1,5 @@
+﻿sub_asset,target_weight,count
+domestic_equity_index,0.4,2
+overseas_equity_index,0.24285714285714294,2
+domestic_equity_sector,0.2142857142857143,2
+overseas_equity_sector,0.14285714285714288,1

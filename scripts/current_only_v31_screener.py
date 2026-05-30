@@ -379,6 +379,34 @@ def build_current_screen(universe: pd.DataFrame, prices: pd.DataFrame, min_histo
     return pd.DataFrame(rows).replace([np.inf, -np.inf], np.nan).dropna(subset=["ETF_RS_20D", "ETF_RS_60D", "ETF_RS_120D"])
 
 
+POLICY_CAPS = {
+    "domestic_equity_index": 0.30,
+    "domestic_equity_sector": 0.15,
+    "overseas_equity_index": 0.30,
+    "overseas_equity_sector": 0.10,
+    "fx_commodity": 0.20,
+}
+
+
+def add_policy_group_relative_returns(frame: pd.DataFrame) -> pd.DataFrame:
+    out = frame.copy()
+    weights = pd.Series(POLICY_CAPS, dtype=float)
+    weights = weights / weights.sum()
+    for horizon in ["20D", "60D", "120D"]:
+        ret_col = f"ETF_return_{horizon}"
+        if ret_col not in out.columns:
+            continue
+        group_ret = out.groupby("sub_asset")[ret_col].transform("mean")
+        policy_parts = out.groupby("sub_asset")[ret_col].mean()
+        policy_return = float((policy_parts.reindex(weights.index).fillna(0.0) * weights).sum())
+        out[f"policy_benchmark_return_{horizon}"] = policy_return
+        out[f"group_benchmark_return_{horizon}"] = group_ret
+        out[f"policy_RS_{horizon}"] = out[ret_col] - policy_return
+        out[f"group_RS_{horizon}"] = out[ret_col] - group_ret
+        out[f"blended_RS_{horizon}"] = 0.60 * out[f"policy_RS_{horizon}"] + 0.40 * out[f"group_RS_{horizon}"]
+    return out
+
+
 def build_latest_component_features(screen: pd.DataFrame, holdings: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
     px = prices.sort_index().apply(pd.to_numeric, errors="coerce").ffill(limit=5)
     latest = pd.Timestamp(screen["date"].max())
@@ -511,16 +539,20 @@ def rolling_log_slope(series: pd.Series) -> float:
 
 def add_current_v31_score(frame: pd.DataFrame, benchmark_20d_threshold: float, benchmark_60d_threshold: float) -> pd.DataFrame:
     out = frame.copy()
+    out = add_policy_group_relative_returns(out)
+    rs20 = "blended_RS_20D" if "blended_RS_20D" in out.columns else "ETF_RS_20D"
+    rs60 = "blended_RS_60D" if "blended_RS_60D" in out.columns else "ETF_RS_60D"
+    rs120 = "blended_RS_120D" if "blended_RS_120D" in out.columns else "ETF_RS_120D"
     out["persistent_rs"] = (
-        0.15 * z(out, "ETF_RS_20D")
-        + 0.40 * z(out, "ETF_RS_60D")
-        + 0.35 * z(out, "ETF_RS_120D")
+        0.15 * z(out, rs20)
+        + 0.40 * z(out, rs60)
+        + 0.35 * z(out, rs120)
         + 0.10 * z(out, "RS_slope_20D")
     )
     out["is_mean_reversion_group"] = out["ranking_group"].isin(MEAN_REVERSION_GROUPS)
     out["is_cyclical_group"] = out["ranking_group"].isin(CYCLICAL_GROUPS)
-    short_rebound = out["ETF_RS_20D"].gt(0) & (out["ETF_RS_60D"].lt(0) | out["ETF_RS_120D"].lt(0))
-    weak_persistence = out["ETF_RS_60D"].lt(0) & out["ETF_RS_120D"].lt(0)
+    short_rebound = out[rs20].gt(0) & (out[rs60].lt(0) | out[rs120].lt(0))
+    weak_persistence = out[rs60].lt(0) & out[rs120].lt(0)
     weak_trend = out["ETF_RS_20D"].lt(0)
     out["benchmark_strong"] = out["benchmark_return_20D"].gt(benchmark_20d_threshold) | out["benchmark_return_60D"].gt(benchmark_60d_threshold)
     out["benchmark_strong_excluded"] = out["benchmark_strong"] & out["etf_ticker"].isin(BENCHMARK_SENSITIVE_EXCLUDES)
