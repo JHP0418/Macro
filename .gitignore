@@ -14,6 +14,7 @@ scripts/*
 !scripts/walkforward_leadership_v2_backtest.py
 !scripts/leadership_v2_constrained_70_30_backtest.py
 !scripts/leadership_v2_sleeve_only_backtest.py
+!scripts/leadership_v31_light_overlay_backtest.py
 !scripts/walkforward_leadership_v31_excess_ranker.py
 !scripts/leadership_rule_vs_ranker_compare.py
 !scripts/walkforward_etf_beta_rs_atr_compare.py

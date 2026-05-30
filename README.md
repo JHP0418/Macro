@@ -5,7 +5,7 @@
 ## 핵심 구성
 
 - `v2`: 기존 리더십 피처 기반 LightGBM walk-forward ranker
-- `v3.1 light overlay`: v2 점수에 지속성 상대강도와 단기 반등 패널티를 약하게 얹은 위험자산 100% overlay
+- `v3.1 light overlay`: v2 점수에 지속성 상대강도와 단기 반등 패널티를 약하게 얹고, 벤치마크 강세장에서 라틴/일본 ETF를 제외하는 위험자산 100% overlay
 - `rule vs ranker compare`: 단순 rule ranking과 Tree ranker를 같은 output 형식으로 비교
 - `beta RS / ATR compare`: Beta-adjusted RS와 ATR 이격도를 사용하는 단순 기술 분석 ranking vs Tree model 비교
 
@@ -23,6 +23,7 @@ scripts/
   walkforward_leadership_v2_backtest.py
   leadership_v2_constrained_70_30_backtest.py
   leadership_v2_sleeve_only_backtest.py
+  leadership_v31_light_overlay_backtest.py
   walkforward_leadership_v31_excess_ranker.py
   leadership_rule_vs_ranker_compare.py
   walkforward_etf_beta_rs_atr_compare.py
@@ -68,6 +69,12 @@ v3.1 excess-ranker 실험:
 python scripts/walkforward_leadership_v31_excess_ranker.py --plot
 ```
 
+v3.1 light overlay:
+
+```bash
+python scripts/leadership_v31_light_overlay_backtest.py --plot
+```
+
 단순 rule ranking vs Tree ranker 비교:
 
 ```bash
@@ -87,13 +94,13 @@ python scripts/walkforward_etf_beta_rs_atr_compare.py --plot
 | 모델 | 누적수익률 | CAGR | MDD | Sharpe | 누적 초과수익 |
 |---|---:|---:|---:|---:|---:|
 | v2 risk-only | 722.37% | 22.62% | -16.97% | 1.28 | 12.04% |
-| v3.1 light overlay | 751.91% | 23.04% | -16.77% | 1.30 | 16.55% |
+| v3.1 light overlay | 812.59% | 23.86% | -16.77% | 1.32 | 25.94% |
 
 해석:
 
-- v3.1 light는 장기 성과를 소폭 개선했습니다.
-- 2025~2026 구간에서는 벤치마크 강세장 대응이 부족해 초과수익이 약했습니다.
-- 다음 개선 방향은 단순 점수 조정보다 regime별 내부비중 조절입니다.
+- v3.1 light는 장기 성과와 누적 초과수익을 개선했습니다.
+- 적용된 추가 룰: `KODEX 200 20D > 3%` 또는 `60D > 8%`인 벤치마크 강세장에서는 `TIGER 라틴35(105010.KS)`, `KODEX 일본TOPIX100(101280.KS)`를 편입 후보에서 제외합니다.
+- 2026 초과수익 열위는 줄었지만 2025 열위는 남아 있어, 다음 개선 방향은 regime별 내부비중 조절입니다.
 
 ## 데이터 주의사항
 
